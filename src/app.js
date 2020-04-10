@@ -21,6 +21,9 @@ let notPlaying = process.env.NOTPLAYING || "Steam Spotify";
 let songTime;
 let songName;
 
+let timeStamp = Date.now();
+let needsUpdate = true;
+
 if (!clientId) throw new Error('Missing Spotify Client ID')
 if (!clientSecret) throw new Error('Missing Spotify Client Secret')
 if (!SteamUsername) throw new Error('Missing Steam Username')
@@ -42,11 +45,9 @@ function main() {
 
   axios.get(options.url, options)
     .then(res => {
-      if (res.data == "") {
-        // No song playing
-        client.gamesPlayed(notPlaying)
-      } else {
+      if (res.data && res.data != "") {
         // The song and artist
+        needsUpdate = true;
         if (songName == res.data.item.name && songTime == res.data.progress_ms) {
           client.gamesPlayed(notPlaying)
         } else if (songName == res.data.item.name) {
@@ -57,7 +58,11 @@ function main() {
           let gameToPlay = `Listening to ${res.data.item.name} by ${res.data.item.artists[0].name}`;
           client.gamesPlayed(gameToPlay)
         }
-
+      } else {
+        if (needsUpdate) {
+          client.gamesPlayed(notPlaying)
+          needsUpdate = false;
+        }
       }
     })
     .catch(err => {
@@ -71,7 +76,7 @@ function main() {
           })
           .catch((err) => console.error(err + 'While getting token from refresh token'));
       } else {
-        console.log(err);
+        console.log(err + "This error while not allow the program to continue");
         process.exit(0);
       }
     })
@@ -201,6 +206,7 @@ app.listen(8888);
     })
     client.on('loggedOn', function (details) {
       client.setPersona(SteamUser.EPersonaState.Online);
+      client.gamesPlayed(notPlaying)
       setInterval(() => {
         main()
       }, 1000)
