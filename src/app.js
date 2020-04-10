@@ -16,7 +16,10 @@ let clientId = process.env.CLIENTID;
 let clientSecret = process.env.CLIENTSECRET;
 let SteamUsername = process.env.STEAMUSERNAME;
 let SteamPassword = process.env.STEAMPASSWORD;
+let notPlaying = process.env.NOTPLAYING || "Steam Spotify";
 
+let songTime;
+let songName;
 
 if (!clientId) throw new Error('Missing Spotify Client ID')
 if (!clientSecret) throw new Error('Missing Spotify Client Secret')
@@ -42,10 +45,17 @@ function main() {
       .then(res => {
         if (res.data == "") {
           // No song playing
-          resolve('')
+          resolve()
         } else {
           // The song and artist
-          resolve(`Listening to ${res.data.item.name} by ${res.data.item.artists[0].name}`)
+          if (songName == res.data.item.name && songTime == res.data.progress_ms) {
+            resolve(notPlaying)
+          } else {
+            songName = res.data.item.name;
+            songTime = res.data.progress_ms;
+            resolve(`Listening to ${res.data.item.name} by ${res.data.item.artists[0].name}`)
+          }
+
         }
       })
       .catch(err => {
@@ -56,7 +66,7 @@ function main() {
             .then((res) => {
               config.set('access_token', res.data.access_token);
               console.log('Token refreshed!\n');
-              main()
+              reject('token expired retrying')
             })
             .catch((err) => console.error(error + 'While getting token from refresh token on Cli'));
         } else {
