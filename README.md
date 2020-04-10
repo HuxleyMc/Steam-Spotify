@@ -6,7 +6,12 @@
 <img src="https://github.com/HuxleyMc/Steam-Spotify/blob/master/screenshot.PNG" width="300px">
 
 ### Install
-```git clone https://github.com/HuxleyMc/Steam-Spotify``` or [Download Zip](https://github.com/HuxleyMc/Steam-Spotify/archive/master.zip)
+```git clone https://github.com/HuxleyMc/Steam-Spotify```
+
+Or
+
+[Download Zip](https://github.com/HuxleyMc/Steam-Spotify/archive/master.zip)
+
 
 Install Required modules
 
