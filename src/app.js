@@ -40,43 +40,41 @@ function main() {
     json: true
   };
 
-  return new Promise((resolve, reject) => {
-    axios.get(options.url, options)
-      .then(res => {
-        if (res.data == "") {
-          // No song playing
-          resolve(notPlaying)
+  axios.get(options.url, options)
+    .then(res => {
+      if (res.data == "") {
+        // No song playing
+        client.gamesPlayed(notPlaying)
+      } else {
+        // The song and artist
+        if (songName == res.data.item.name && songTime == res.data.progress_ms) {
+          client.gamesPlayed(notPlaying)
+        } else if (songName == res.data.item.name) {
+          songTime = res.data.progress_ms;
         } else {
-          // The song and artist
-          if (songName == res.data.item.name && songTime == res.data.progress_ms) {
-            resolve(notPlaying)
-          } else if (songName == res.data.item.name) {
-            songTime = res.data.progress_ms;
-          } else {
-            songName = res.data.item.name;
-            songTime = res.data.progress_ms;
-            resolve(`Listening to ${res.data.item.name} by ${res.data.item.artists[0].name}`)
-          }
+          songName = res.data.item.name;
+          songTime = res.data.progress_ms;
+          let gameToPlay = `Listening to ${res.data.item.name} by ${res.data.item.artists[0].name}`;
+          client.gamesPlayed(gameToPlay)
+        }
 
-        }
-      })
-      .catch(err => {
-        if (err.response && err.response.status == 401) {
-          // Token Expired - Refresh token
-          axios
-            .get('http://localhost:8888/refresh_token?refresh_token=' + refresh_token)
-            .then((res) => {
-              config.set('access_token', res.data.access_token);
-              console.log('Token refreshed!\n');
-              reject('token expired retrying')
-            })
-            .catch((err) => console.error(err + 'While getting token from refresh token'));
-        } else {
-          console.log(err);
-          process.exit(0);
-        }
-      })
-  })
+      }
+    })
+    .catch(err => {
+      if (err.response && err.response.status == 401) {
+        // Token Expired - Refresh token
+        axios
+          .get('http://localhost:8888/refresh_token?refresh_token=' + refresh_token)
+          .then((res) => {
+            config.set('access_token', res.data.access_token);
+            console.log('Token refreshed!\n');
+          })
+          .catch((err) => console.error(err + 'While getting token from refresh token'));
+      } else {
+        console.log(err);
+        process.exit(0);
+      }
+    })
 }
 
 
@@ -205,8 +203,6 @@ app.listen(8888);
       client.setPersona(SteamUser.EPersonaState.Online);
       setInterval(() => {
         main()
-          .then(status => client.gamesPlayed(status))
-          .catch(err => console.log(err))
       }, 1000)
     });
   } else {
