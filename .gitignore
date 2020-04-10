@@ -4,3 +4,6 @@ config.js
 
 
 .env
+
+
+store.js
