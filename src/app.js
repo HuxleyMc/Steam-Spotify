@@ -59,7 +59,7 @@ function main() {
         }
       })
       .catch(err => {
-        if (error.response && error.response.status == 401) {
+        if (err.response && err.response.status == 401) {
           // Token Expired - Refresh token
           axios
             .get('http://localhost:8888/refresh_token?refresh_token=' + refresh_token)
@@ -68,7 +68,7 @@ function main() {
               console.log('Token refreshed!\n');
               reject('token expired retrying')
             })
-            .catch((err) => console.error(error + 'While getting token from refresh token on Cli'));
+            .catch((err) => console.error(error + 'While getting token from refresh token'));
         } else {
           console.log(error);
           process.exit(0);
