@@ -45,11 +45,13 @@ function main() {
       .then(res => {
         if (res.data == "") {
           // No song playing
-          resolve()
+          resolve(notPlaying)
         } else {
           // The song and artist
           if (songName == res.data.item.name && songTime == res.data.progress_ms) {
             resolve(notPlaying)
+          } else if (songName == res.data.item.name) {
+            songTime = res.data.progress_ms;
           } else {
             songName = res.data.item.name;
             songTime = res.data.progress_ms;
