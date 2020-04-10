@@ -68,9 +68,9 @@ function main() {
               console.log('Token refreshed!\n');
               reject('token expired retrying')
             })
-            .catch((err) => console.error(error + 'While getting token from refresh token'));
+            .catch((err) => console.error(err + 'While getting token from refresh token'));
         } else {
-          console.log(error);
+          console.log(err);
           process.exit(0);
         }
       })
