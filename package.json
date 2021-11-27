@@ -4,7 +4,7 @@
   "main": "dist/app.js",
   "license": "MIT",
   "dependencies": {
-    "axios": "^0.19.2",
+    "axios": "^0.21.2",
     "btoa": "^1.2.1",
     "conf": "^6.2.3",
     "cookie-parser": "^1.4.5",
