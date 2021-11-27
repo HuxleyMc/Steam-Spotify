@@ -42,6 +42,7 @@ npm run start
 ### Dev
 
 To run dev
+NOTE: docker is currently not working
 
 ```
 npm run dev

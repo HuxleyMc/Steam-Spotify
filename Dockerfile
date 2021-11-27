@@ -25,6 +25,6 @@ RUN npm ci --no-audit
 
 COPY --from=builder /usr/app/dist ./dist
 
-EXPOSE 3000
+EXPOSE 8888
 
 CMD ["node", "./dist/index.js"]
