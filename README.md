@@ -1,43 +1,56 @@
-<h1 align="center">Steam Spotify</h1>
+<h1 align="center">Steam Spotify V2</h1>
 
 <p>Show's your current playing song on steam as the game your playing</p>
 
-
-<img src="https://github.com/HuxleyMc/Steam-Spotify/blob/master/screenshot.PNG" width="300px">
+<!-- <img src="https://github.com/HuxleyMc/Steam-Spotify/blob/master/screenshot.PNG" width="300px"> -->
 
 ### Install
-```git clone https://github.com/HuxleyMc/Steam-Spotify```
+
+`git clone https://github.com/HuxleyMc/Steam-Spotify`
 
 Or
 
 [Download Zip](https://github.com/HuxleyMc/Steam-Spotify/archive/master.zip)
 
-
 Install Required modules
 
 ```
-yarn install
+npm install
 ```
 
 ### Usage
 
-* Create a spotify app on [Spotify for Developers Dashboard](https://developer.spotify.com/dashboard/) and store App ID and App Secret somewhere.
-* Edit the example.env and add the following
-* * Add your steam user and password 
-* * Add your spotify id and secret
-* Rename example.env to .env
+- Create a spotify app on [Spotify for Developers Dashboard](https://developer.spotify.com/dashboard/)
+- Edit the example.env and add the following
+- - Add your steam user and password
+- - Add your spotify id and secret
+- Rename example.env to .env
 
-##### Starting
+<br/>
+
+### Starting
+
 To start run
 
 ```
-yarn start
+npm run build
+npm run start
 ```
 
+<br/>
 
+### Dev
+
+To run dev
+
+```
+npm run dev
+```
+
+<br/>
 
 ## Authors
 
-* **Huxley** - *Initial work* - [huxleymc](https://github.com/huxleymc)
+- **Huxley** - [huxleymc](https://github.com/huxleymc)
 
 See also the list of [contributors](https://github.com/HuxleyMc/Steam-Spotify/contributors) who participated in this project.

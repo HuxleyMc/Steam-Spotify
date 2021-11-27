@@ -1,5 +1,7 @@
 node_modules
-config.js
 
 .env
+dist/
 
+# Good bye V1 :crying: https://youtu.be/dQw4w9WgXcQ
+V1/
