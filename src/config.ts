@@ -7,6 +7,7 @@ const ClientSecret = process.env.CLIENTSECRET;
 const SteamUsername = process.env.STEAMUSERNAME;
 const SteamPassword = process.env.STEAMPASSWORD;
 const NotPlaying = process.env.NOTPLAYING || "Monkey";
+export const DOMAIN = process.env.DOMAIN || "http://localhost:3000";
 
 export const initConfig = () => {
   if (!ClientId || !ClientSecret || !SteamUsername || !SteamPassword) {
