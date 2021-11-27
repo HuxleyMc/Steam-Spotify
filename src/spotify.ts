@@ -1,6 +1,6 @@
 import SpotifyWebApi from "spotify-web-api-node";
 import { Express } from "express";
-import { config, DOMAIN } from "./config";
+import { config } from "./config";
 
 const initSpotify = async (
   clientId: string,
@@ -10,7 +10,7 @@ const initSpotify = async (
   const spotifyApi = new SpotifyWebApi({
     clientId,
     clientSecret,
-    redirectUri: `${DOMAIN}/callback`,
+    redirectUri: "http://localhost:3000/callback",
   });
 
   let tokenRefreshInterval: NodeJS.Timeout;
@@ -72,7 +72,7 @@ const initSpotify = async (
 
   if (!spotifyApi.getAccessToken()) {
     console.log(
-      `Please log in to Spotify in the browser and allow access - ${DOMAIN}/login`
+      "Please log in to Spotify in the browser and allow access - http://localhost:3000/login"
     );
   }
 
