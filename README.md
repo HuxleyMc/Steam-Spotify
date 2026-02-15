@@ -128,3 +128,22 @@ If startup says required env vars are missing:
 ## Docker
 
 A `Dockerfile` is included, but local Bun execution is the recommended and supported setup path.
+
+## Desktop App (Preview)
+
+A simple Rust + Tauri desktop wrapper is available in `desktop/`.
+
+It provides a basic UI to:
+
+- enter credentials
+- start/stop sync
+- open Spotify login
+- view logs
+
+Run it locally:
+
+```bash
+cd desktop
+bun install
+bun run dev
+```

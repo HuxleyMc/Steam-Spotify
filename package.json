@@ -10,7 +10,9 @@
     "dev": "bun run src/index.ts",
     "start:local": "bun run src/index.ts",
     "typecheck": "tsc --noEmit",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "desktop:dev": "cd desktop && bun run dev",
+    "desktop:build": "cd desktop && bun run build"
   },
   "repository": {
     "type": "git",

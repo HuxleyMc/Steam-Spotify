@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Steam Spotify Desktop</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header>
+        <h1>Steam Spotify</h1>
+        <p>Connect Spotify, sign into Steam, and start syncing in one place.</p>
+      </header>
+
+      <section class="card form-card">
+        <h2>Credentials</h2>
+        <p class="muted">
+          Credentials are passed to the sync process at runtime.
+        </p>
+
+        <label>
+          Spotify Client ID
+          <input id="clientId" type="text" autocomplete="off" />
+        </label>
+
+        <label>
+          Spotify Client Secret
+          <input id="clientSecret" type="password" autocomplete="off" />
+        </label>
+
+        <label>
+          Steam Username
+          <input id="steamUsername" type="text" autocomplete="off" />
+        </label>
+
+        <label>
+          Steam Password
+          <input id="steamPassword" type="password" autocomplete="off" />
+        </label>
+
+        <label>
+          Fallback status (optional)
+          <input
+            id="notPlaying"
+            type="text"
+            value="Monkey"
+            autocomplete="off"
+          />
+        </label>
+      </section>
+
+      <section class="card actions-card">
+        <h2>Controls</h2>
+        <div class="actions">
+          <button id="startButton" class="primary">Start Sync</button>
+          <button id="stopButton" class="danger" disabled>Stop Sync</button>
+          <button id="loginButton" class="secondary">Open Spotify Login</button>
+        </div>
+        <p id="status" class="status">Status: idle</p>
+      </section>
+
+      <section class="card logs-card">
+        <h2>Live Logs</h2>
+        <pre id="logs" aria-live="polite"></pre>
+      </section>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
