@@ -1,7 +1,5 @@
 node_modules
 
 .env
+.steam-spotify-tokens.json
 dist/
-
-# Good bye V1 :crying: https://youtu.be/dQw4w9WgXcQ
-V1/

@@ -1,30 +1,12 @@
-FROM node:16-alpine as builder
-
-ENV NODE_ENV build
+FROM oven/bun:1.1
 
 WORKDIR /usr/app
 
-COPY ./package.json ./package-lock.json ./
-COPY ./tsconfig.json ./tsconfig.json ./
+COPY package.json ./
+RUN bun install
 
-RUN npm ci --no-audit
-
-COPY ./src ./src
-
-RUN npm run build
-
-FROM node:16-alpine
-
-ENV NODE_ENV production
-
-WORKDIR /usr/app
-
-COPY --from=builder /usr/app/package.json /usr/app/package-lock.json ./
-
-RUN npm ci --no-audit
-
-COPY --from=builder /usr/app/dist ./dist
+COPY . .
 
 EXPOSE 8888
 
-CMD ["node", "./dist/index.js"]
+CMD ["bun", "run", "start"]

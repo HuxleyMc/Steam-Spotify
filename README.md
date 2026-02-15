@@ -1,57 +1,130 @@
-<h1 align="center">Steam Spotify V2</h1>
+# Steam Spotify
 
-<p>Show's your current playing song on steam as the game your playing</p>
+Sync your Spotify "currently playing" track to your Steam status.
 
-<!-- <img src="https://github.com/HuxleyMc/Steam-Spotify/blob/master/screenshot.PNG" width="300px"> -->
+When a song is playing, Steam shows:
 
-### Install
+`Listening to <song> • <artist>`
 
-`git clone https://github.com/HuxleyMc/Steam-Spotify`
+When nothing is playing, Steam shows your fallback text from `NOTPLAYING`.
 
-Or
+## Requirements
 
-[Download Zip](https://github.com/HuxleyMc/Steam-Spotify/archive/master.zip)
+- Bun 1.1+
+- A Steam account username/password
+- A Spotify developer app with client ID/secret
 
-Install Required modules
+## Quick Start
 
-```
-npm install
-```
+1. Install dependencies:
 
-### Usage
-
-- Create a spotify app on [Spotify for Developers Dashboard](https://developer.spotify.com/dashboard/)
-- Edit the example.env and add the following
-- - Add your steam user and password
-- - Add your spotify id and secret
-- Rename example.env to .env
-
-<br/>
-
-### Starting
-
-To start run
-
-```
-npm run build
-npm run start
+```bash
+bun install
 ```
 
-<br/>
+2. Create your environment file:
 
-### Dev
-
-To run dev
-NOTE: docker is currently not working
-
-```
-npm run dev
+```bash
+cp example.env .env
 ```
 
-<br/>
+3. Fill in `.env`:
 
-## Authors
+- `CLIENTID` (Spotify app client ID)
+- `CLIENTSECRET` (Spotify app client secret)
+- `STEAMUSERNAME` (Steam username)
+- `STEAMPASSWORD` (Steam password)
+- `NOTPLAYING` (optional fallback text)
 
-- **Huxley** - [huxleymc](https://github.com/huxleymc)
+4. In Spotify Developer Dashboard, configure your app redirect URI exactly as:
 
-See also the list of [contributors](https://github.com/HuxleyMc/Steam-Spotify/contributors) who participated in this project.
+`http://localhost:8888/callback`
+
+5. Start the app:
+
+```bash
+bun run start
+```
+
+6. On first run, open:
+
+`http://localhost:8888/login`
+
+Approve access in Spotify. After success, the app will continue running.
+
+## First Run: What You Should See
+
+```text
+OAuth server listening at http://localhost:8888
+Config loaded.
+Open http://localhost:8888/login to connect Spotify.
+Waiting for user to authorize the app...
+Spotify API ready!
+Logged into Steam
+```
+
+If Spotify authorization is not completed within a few minutes, the app exits with
+instructions and you can run `bun run start` again.
+
+## Commands
+
+- `bun run start` - Run the app (recommended)
+- `bun run dev` - Run the app in dev mode
+- `bun run typecheck` - TypeScript check only
+- `bun run format:check` - Prettier check for `src/**/*.ts`
+
+## How It Works
+
+- Starts a local auth server on port `8888`
+- Uses Spotify OAuth authorization code flow
+- Persists Spotify tokens locally in `.steam-spotify-tokens.json`
+- Polls Spotify playback every 2 seconds
+- Updates Steam rich presence text with track + artist
+
+## Troubleshooting
+
+### Common errors
+
+| Symptom                                     | Likely cause                                      | Fix                                                                                    |
+| ------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Missing required environment variables      | `.env` missing or incomplete                      | `cp example.env .env`, fill required keys, rerun                                       |
+| Callback/auth error from Spotify            | Redirect URI mismatch or wrong client credentials | Set redirect URI to `http://localhost:8888/callback`; verify `CLIENTID`/`CLIENTSECRET` |
+| Timed out waiting for Spotify authorization | Login flow not completed in browser               | Open `http://localhost:8888/login` and approve access                                  |
+| Failed to login to steam                    | Wrong Steam credentials                           | Verify `STEAMUSERNAME` and `STEAMPASSWORD`                                             |
+| Failed to fetch current Spotify playback    | Temporary network/API issue                       | Keep app running; it retries automatically                                             |
+
+### Missing environment variables
+
+If startup says required env vars are missing:
+
+- Ensure `.env` exists in project root
+- Ensure all required keys are set and non-empty
+- Re-run `bun run start`
+
+### Spotify authorization times out
+
+- Open `http://localhost:8888/login`
+- Confirm your Spotify app redirect URI is exactly `http://localhost:8888/callback`
+- Check `CLIENTID` and `CLIENTSECRET` in `.env`
+
+### Steam login fails
+
+- Re-check `STEAMUSERNAME` and `STEAMPASSWORD`
+- Confirm account credentials are valid
+
+### Need more help?
+
+- Spotify Web API docs: https://developer.spotify.com/documentation/web-api
+- Spotify auth code flow docs: https://developer.spotify.com/documentation/web-api/tutorials/code-flow
+- steam-user package docs: https://github.com/DoctorMcKay/node-steam-user
+
+## Security Notes
+
+- Do not commit `.env`
+- Do not commit `.steam-spotify-tokens.json`
+- Do not share runtime logs if they contain account-related error details
+- Tokens are stored locally in `.steam-spotify-tokens.json`
+
+## Docker
+
+A `Dockerfile` is included, but local Bun execution is the recommended and supported setup path.
