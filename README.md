@@ -38,7 +38,7 @@ cp example.env .env
 
 4. In Spotify Developer Dashboard, configure your app redirect URI exactly as:
 
-`http://localhost:8888/callback`
+`http://127.0.0.1:8888/callback`
 
 5. Start the app:
 
@@ -48,16 +48,16 @@ bun run start
 
 6. On first run, open:
 
-`http://localhost:8888/login`
+`http://127.0.0.1:8888/login`
 
 Approve access in Spotify. After success, the app will continue running.
 
 ## First Run: What You Should See
 
 ```text
-OAuth server listening at http://localhost:8888
+OAuth server listening at http://127.0.0.1:8888
 Config loaded.
-Open http://localhost:8888/login to connect Spotify.
+Open http://127.0.0.1:8888/login to connect Spotify.
 Waiting for user to authorize the app...
 Spotify API ready!
 Logged into Steam
@@ -88,8 +88,8 @@ instructions and you can run `bun run start` again.
 | Symptom                                     | Likely cause                                      | Fix                                                                                    |
 | ------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Missing required environment variables      | `.env` missing or incomplete                      | `cp example.env .env`, fill required keys, rerun                                       |
-| Callback/auth error from Spotify            | Redirect URI mismatch or wrong client credentials | Set redirect URI to `http://localhost:8888/callback`; verify `CLIENTID`/`CLIENTSECRET` |
-| Timed out waiting for Spotify authorization | Login flow not completed in browser               | Open `http://localhost:8888/login` and approve access                                  |
+| Callback/auth error from Spotify            | Redirect URI mismatch or wrong client credentials | Set redirect URI to `http://127.0.0.1:8888/callback`; verify `CLIENTID`/`CLIENTSECRET` |
+| Timed out waiting for Spotify authorization | Login flow not completed in browser               | Open `http://127.0.0.1:8888/login` and approve access                                  |
 | Failed to login to steam                    | Wrong Steam credentials                           | Verify `STEAMUSERNAME` and `STEAMPASSWORD`                                             |
 | Failed to fetch current Spotify playback    | Temporary network/API issue                       | Keep app running; it retries automatically                                             |
 
@@ -103,8 +103,8 @@ If startup says required env vars are missing:
 
 ### Spotify authorization times out
 
-- Open `http://localhost:8888/login`
-- Confirm your Spotify app redirect URI is exactly `http://localhost:8888/callback`
+- Open `http://127.0.0.1:8888/login`
+- Confirm your Spotify app redirect URI is exactly `http://127.0.0.1:8888/callback`
 - Check `CLIENTID` and `CLIENTSECRET` in `.env`
 
 ### Steam login fails

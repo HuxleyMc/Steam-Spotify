@@ -5,7 +5,10 @@ import { loadSpotifyTokens, saveSpotifyTokens } from "./config";
 
 const AUTH_WAIT_INTERVAL_MS = 5000;
 const AUTH_TIMEOUT_MS = 5 * 60 * 1000;
-const REDIRECT_URI = "http://localhost:8888/callback";
+const LOOPBACK_HOST = "127.0.0.1";
+const OAUTH_PORT = 8888;
+const REDIRECT_URI = `http://${LOOPBACK_HOST}:${OAUTH_PORT}/callback`;
+const LOGIN_URL = `http://${LOOPBACK_HOST}:${OAUTH_PORT}/login`;
 const TOKEN_URL = "https://accounts.spotify.com/api/token";
 const AUTHORIZE_URL = "https://accounts.spotify.com/authorize";
 const CURRENT_TRACK_URL =
@@ -201,12 +204,14 @@ const initSpotify = async (
     }
   );
 
-  server.listen(8888, () => {
-    console.log("OAuth server listening at http://localhost:8888");
+  server.listen(OAUTH_PORT, () => {
+    console.log(
+      `OAuth server listening at http://${LOOPBACK_HOST}:${OAUTH_PORT}`
+    );
   });
 
   if (!accessToken) {
-    console.log("Open http://localhost:8888/login to connect Spotify.");
+    console.log(`Open ${LOGIN_URL} to connect Spotify.`);
     console.log(
       `If authorization fails, confirm the Spotify redirect URI is exactly ${REDIRECT_URI}.`
     );
@@ -219,7 +224,7 @@ const initSpotify = async (
 
     if (Date.now() - authStartedAt > AUTH_TIMEOUT_MS) {
       console.error("Timed out waiting for Spotify authorization.");
-      console.error("Open http://localhost:8888/login and complete the flow.");
+      console.error(`Open ${LOGIN_URL} and complete the flow.`);
       console.error(
         `Make sure your Spotify app redirect URI is ${REDIRECT_URI}.`
       );
@@ -234,9 +239,7 @@ const initSpotify = async (
       await refreshAccessToken();
     } catch (refreshError) {
       console.error("Failed to refresh Spotify token:", refreshError);
-      console.error(
-        "Please re-open http://localhost:8888/login to re-authorize."
-      );
+      console.error(`Please re-open ${LOGIN_URL} to re-authorize.`);
     }
   }, (expiresIn / 2) * 1000);
 
