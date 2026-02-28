@@ -1,39 +1,77 @@
 # Steam Spotify Desktop (Tauri)
 
-This is a lightweight desktop wrapper around the existing sync service.
+Desktop UI for running and monitoring Steam-Spotify sync.
 
-## What it does
+## What You Can Do
 
-- Collects Spotify and Steam credentials in a desktop UI.
-- Prompts for Steam Guard code at runtime when Steam issues a challenge.
-- Saves credentials locally and restores them when reopening the app.
-- Supports optional Spotify redirect URI override for callback mismatch fixes.
-- Starts/stops/restarts the existing `bun run start` sync process.
-- Tracks sync lifecycle in real time (starting/running/stopping/exited/error).
-- Streams sync logs into the UI.
-- Opens Spotify login URL (`http://127.0.0.1:8888/login`) with one click.
+- enter Spotify and Steam credentials
+- start, stop, and restart sync
+- open Spotify login page from the app
+- submit Steam Guard response (code or approval)
+- monitor Steam session status
+- stream logs in real time
+- collapse credentials section for cleaner monitoring
 
-## Development
+## Prerequisites
+
+1. Install Bun
+2. Install Rust toolchain (for Tauri)
+3. Install repo dependencies
 
 From repository root:
 
 ```bash
+bun install
 cd desktop
 bun install
+```
+
+## Run Desktop App
+
+```bash
+cd desktop
 bun run dev
 ```
 
-## Build installers
+## Typical Usage Flow
+
+1. Fill credentials in the UI.
+2. Click `Start Sync`.
+3. Click `Open Spotify Login` and approve access.
+4. If Steam asks for a code, enter it and click `Submit Code`.
+5. If Steam asks for approval, approve in Steam and click `Continue`.
+6. Confirm logs show Steam login succeeded.
+
+## Steam Guard Notes
+
+- The app sends one Steam Guard response per sync start.
+- If Steam asks again after the first response, restart sync (`Stop Sync` then `Start Sync`).
+- This avoids repeated auth submissions and Steam rate-limit issues.
+
+## Build Installers
 
 ```bash
 cd desktop
 bun run build
 ```
 
-Tauri outputs platform installers/bundles under `desktop/src-tauri/target/release/bundle`.
+Output directory:
+
+`desktop/src-tauri/target/release/bundle`
+
+## Create Beta Release (GitHub Actions)
+
+Use workflow:
+
+`.github/workflows/beta-release.yml`
+
+Run it manually (`workflow_dispatch`) to:
+
+1. Build desktop bundles for Linux, macOS, and Windows.
+2. Publish a GitHub prerelease with attached artifacts.
 
 ## Notes
 
-- This wrapper currently launches `bun run start`, so Bun must be available on the machine.
-- Settings are stored in the app config directory as `settings.json`.
-- For packaged distribution to end users without Bun, next step is bundling a standalone core binary and launching that instead.
+- Desktop currently launches the Bun-based sync process (`bun run src/index.ts`).
+- Bun must be available on the machine running the desktop app.
+- Settings are stored in app config as `settings.json`.

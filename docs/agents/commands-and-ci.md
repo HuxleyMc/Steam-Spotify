@@ -1,29 +1,64 @@
 # Commands and CI
 
-Authoritative command sources:
-
-- `package.json` scripts
-- `.github/workflows/ci.yml`
+This file is the quick reference for local commands and GitHub Actions.
 
 ## Install
 
-- `bun install`
+```bash
+bun install
+```
 
 ## Run
 
-- Canonical: `bun run start`
-- Alias: `bun run start:local`
-- Dev: `bun run dev`
+- Canonical:
+
+```bash
+bun run start
+```
+
+- Alias:
+
+```bash
+bun run start:local
+```
+
+- Dev:
+
+```bash
+bun run dev
+```
 
 `start` and `start:local` currently resolve to the same command.
 
-## Quality Commands
+## Local Quality Checklist
 
-- Format check: `bun run format:check`
-- Type check: `bun run typecheck`
-- Build: `bun run build`
+Run these before committing:
 
-## CI (Push)
+1. Format check:
+
+```bash
+bun run format:check
+```
+
+2. Type check:
+
+```bash
+bun run typecheck
+```
+
+3. Build:
+
+```bash
+bun run build
+```
+
+4. Tests:
+
+```bash
+bun run test
+```
+
+## Push CI
 
 Workflow: `.github/workflows/ci.yml`
 
@@ -31,8 +66,9 @@ Workflow: `.github/workflows/ci.yml`
 2. `bun run format:check`
 3. `bun run typecheck`
 4. `bun run build`
+5. `bun run test`
 
-When changing code, keep local verification aligned with CI.
+Local checklist should stay aligned with CI.
 
 ## Beta Release (Manual)
 
@@ -40,12 +76,12 @@ Workflow: `.github/workflows/beta-release.yml`
 
 Trigger: `workflow_dispatch`
 
-Inputs:
+Input reference:
 
-- `ref` (optional): branch/tag/SHA to build (defaults to `main`)
-- `tag` (optional): prerelease tag override
-- `release_name` (optional): prerelease title override
-- `notes` (optional): extra notes for the release body
+- `ref`: branch/tag/SHA to build (default `main`)
+- `tag`: prerelease tag override (optional)
+- `release_name`: release title override (optional)
+- `notes`: release body additions (optional)
 
 Behavior:
 
