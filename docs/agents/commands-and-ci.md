@@ -85,7 +85,7 @@ Input reference:
 
 Behavior:
 
-1. Builds Tauri desktop bundles on Linux, macOS, and Windows.
+1. Builds Tauri desktop bundles on macOS only (Linux/Windows disabled for now).
 2. Uploads build bundles as workflow artifacts.
 3. Creates a GitHub prerelease (`beta-*`) and attaches the archived bundles.
 

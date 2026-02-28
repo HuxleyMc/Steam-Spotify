@@ -67,7 +67,7 @@ Use workflow:
 
 Run it manually (`workflow_dispatch`) to:
 
-1. Build desktop bundles for Linux, macOS, and Windows.
+1. Build desktop bundles for macOS (Linux/Windows disabled for now).
 2. Publish a GitHub prerelease with attached artifacts.
 
 ## Notes

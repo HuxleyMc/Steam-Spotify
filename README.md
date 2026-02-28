@@ -149,4 +149,4 @@ Manual GitHub Action available:
 
 - Workflow: `.github/workflows/beta-release.yml`
 - Trigger: `workflow_dispatch`
-- Builds desktop bundles (Linux/macOS/Windows) and creates a prerelease
+- Currently builds macOS desktop bundles only and creates a prerelease
