@@ -8,69 +8,103 @@
   </head>
   <body>
     <main class="app-shell">
-      <header>
-        <h1>Steam Spotify</h1>
-        <p>Connect Spotify, sign into Steam, and start syncing in one place.</p>
-      </header>
-
-      <section class="card form-card">
-        <h2>Credentials</h2>
-        <p class="muted">
-          Credentials are passed to the sync process at runtime.
+      <section class="hero-panel">
+        <p class="eyebrow">Desktop Relay</p>
+        <h1>Steam x Spotify Signal Console</h1>
+        <p class="hero-copy">
+          Manage credentials, launch the sync process, and watch runtime output
+          in one control surface designed for fast monitoring.
         </p>
-
-        <label>
-          Spotify Client ID
-          <input id="clientId" type="text" autocomplete="off" />
-        </label>
-
-        <label>
-          Spotify Client Secret
-          <input id="clientSecret" type="password" autocomplete="off" />
-        </label>
-
-        <label>
-          Steam Username
-          <input id="steamUsername" type="text" autocomplete="off" />
-        </label>
-
-        <label>
-          Steam Password
-          <input id="steamPassword" type="password" autocomplete="off" />
-        </label>
-
-        <label>
-          Fallback status (optional)
-          <input
-            id="notPlaying"
-            type="text"
-            value="Monkey"
-            autocomplete="off"
-          />
-        </label>
-      </section>
-
-      <section class="card actions-card">
-        <h2>Controls</h2>
-        <div class="actions">
-          <button id="startButton" class="primary">Start Sync</button>
-          <button id="restartButton" class="secondary" disabled>
-            Restart Sync
-          </button>
-          <button id="stopButton" class="danger" disabled>Stop Sync</button>
-          <button id="loginButton" class="secondary" disabled>
-            Open Spotify Login
-          </button>
-        </div>
-        <div class="status-panel">
-          <p id="status" class="status status-idle">Status: idle</p>
-          <p id="statusDetail" class="status-detail">Sync is not running.</p>
+        <div class="hero-meta">
+          <span class="meta-pill">Local-only credentials</span>
+          <span class="meta-pill">Lifecycle telemetry</span>
+          <span class="meta-pill">Realtime stdout stream</span>
         </div>
       </section>
 
-      <section class="card logs-card">
-        <h2>Live Logs</h2>
-        <pre id="logs" aria-live="polite"></pre>
+      <section class="workspace-grid">
+        <section class="panel credentials-panel">
+          <div class="panel-heading">
+            <h2>Credentials</h2>
+            <p>
+              Settings are saved in local app storage and injected when the sync
+              process starts.
+            </p>
+          </div>
+
+          <div class="fields">
+            <label class="field-label">
+              Spotify Client ID
+              <input id="clientId" type="text" autocomplete="off" />
+            </label>
+
+            <label class="field-label">
+              Spotify Client Secret
+              <input id="clientSecret" type="password" autocomplete="off" />
+            </label>
+
+            <label class="field-label">
+              Steam Username
+              <input id="steamUsername" type="text" autocomplete="off" />
+            </label>
+
+            <label class="field-label">
+              Steam Password
+              <input id="steamPassword" type="password" autocomplete="off" />
+            </label>
+
+            <label class="field-label">
+              Fallback status
+              <input
+                id="notPlaying"
+                type="text"
+                value="Monkey"
+                autocomplete="off"
+              />
+            </label>
+          </div>
+        </section>
+
+        <div class="stack">
+          <section class="panel controls-panel">
+            <div class="panel-heading">
+              <h2>Process Controls</h2>
+              <p>Trigger runtime actions and Spotify auth in-place.</p>
+            </div>
+
+            <div class="actions">
+              <button id="startButton" class="primary">Start Sync</button>
+              <button id="restartButton" class="secondary" disabled>
+                Restart Sync
+              </button>
+              <button id="stopButton" class="danger" disabled>
+                Stop Sync
+              </button>
+              <button id="loginButton" class="secondary" disabled>
+                Open Spotify Login
+              </button>
+              <button id="clearLogsButton" class="ghost" type="button">
+                Clear Logs
+              </button>
+            </div>
+
+            <div class="status-strip">
+              <p id="status" class="status status-idle">Status: idle</p>
+              <p id="statusDetail" class="status-detail">Sync is not running.</p>
+            </div>
+          </section>
+
+          <section class="panel logs-panel">
+            <div class="logs-head">
+              <div class="panel-heading compact">
+                <h2>Live Logs</h2>
+                <p id="logCount">0 lines captured</p>
+              </div>
+              <span id="streamState" class="stream-pill stream-idle">stream idle</span>
+            </div>
+            <pre id="logs" aria-live="polite"></pre>
+          </section>
+        </div>
       </section>
     </main>
 

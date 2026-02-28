@@ -11,11 +11,15 @@ const startButton = document.querySelector("#startButton");
 const restartButton = document.querySelector("#restartButton");
 const stopButton = document.querySelector("#stopButton");
 const loginButton = document.querySelector("#loginButton");
+const clearLogsButton = document.querySelector("#clearLogsButton");
 const statusEl = document.querySelector("#status");
 const statusDetailEl = document.querySelector("#statusDetail");
 const logsEl = document.querySelector("#logs");
+const logCountEl = document.querySelector("#logCount");
+const streamStateEl = document.querySelector("#streamState");
 let syncRunning = false;
 let actionInProgress = false;
+let logLineCount = 0;
 
 const statusClassNames = [
   "status-idle",
@@ -25,6 +29,8 @@ const statusClassNames = [
   "status-disconnected",
   "status-error",
 ];
+
+const streamClassNames = ["stream-idle", "stream-live", "stream-error"];
 
 const statusVariants = {
   idle: {
@@ -59,8 +65,54 @@ const statusVariants = {
   },
 };
 
+const streamVariants = {
+  idle: {
+    className: "stream-idle",
+    label: "stream idle",
+  },
+  live: {
+    className: "stream-live",
+    label: "stream live",
+  },
+  error: {
+    className: "stream-error",
+    label: "stream alert",
+  },
+};
+
+const streamByStatus = {
+  idle: "idle",
+  running: "live",
+  starting: "live",
+  stopping: "live",
+  disconnected: "error",
+  error: "error",
+};
+
+const setStreamState = (state) => {
+  if (!streamStateEl) {
+    return;
+  }
+
+  const variant = streamVariants[state] ?? streamVariants.error;
+  streamStateEl.classList.remove(...streamClassNames);
+  streamStateEl.classList.add(variant.className);
+  streamStateEl.textContent = variant.label;
+};
+
+const updateLogCount = () => {
+  if (!logCountEl) {
+    return;
+  }
+
+  const lineLabel = logLineCount === 1 ? "line" : "lines";
+  logCountEl.textContent = `${logLineCount} ${lineLabel} captured`;
+};
+
 const appendLog = (line) => {
   logsEl.textContent += `${line}\n`;
+  logLineCount += 1;
+  updateLogCount();
   logsEl.scrollTop = logsEl.scrollHeight;
 };
 
@@ -70,6 +122,7 @@ const setStatus = (state, detail) => {
   statusEl.classList.add(variant.className);
   statusEl.textContent = variant.label;
   statusDetailEl.textContent = detail ?? variant.detail;
+  setStreamState(streamByStatus[state] ?? "error");
 };
 
 const getSettings = () => {
@@ -175,6 +228,7 @@ const handleLifecycleEvent = (payload) => {
 };
 
 if (invoke && listen) {
+  updateLogCount();
   syncControls();
   setStatus("idle");
 
@@ -267,6 +321,12 @@ if (invoke && listen) {
     }
   });
 
+  clearLogsButton?.addEventListener("click", () => {
+    logsEl.textContent = "";
+    logLineCount = 0;
+    updateLogCount();
+  });
+
   listen("sync-log", (event) => {
     const payload = event.payload;
     if (typeof payload === "string") {
@@ -307,5 +367,6 @@ if (invoke && listen) {
     "[ui] Tauri API is unavailable. Run this UI through the Tauri app, not a regular browser.",
   );
   setStatus("error", "Tauri API unavailable in this context.");
+  setStreamState("error");
   syncControls();
 }

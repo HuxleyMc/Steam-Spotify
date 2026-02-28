@@ -1,0 +1,201 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  * {
+    @apply border-line;
+  }
+
+  body {
+    @apply min-h-screen bg-shell font-body text-ink antialiased;
+    background-image:
+      radial-gradient(circle at 15% 8%, rgba(45, 79, 184, 0.2), transparent 36%),
+      radial-gradient(circle at 82% 82%, rgba(183, 79, 31, 0.18), transparent 42%),
+      linear-gradient(160deg, #f2ece2 0%, #e6ded0 100%);
+  }
+
+  h1,
+  h2 {
+    @apply font-display;
+  }
+
+  input {
+    @apply w-full rounded-xl border bg-parchment/90 px-4 py-2.5 text-[0.95rem] text-ink outline-none transition placeholder:text-ink-soft/60 focus:border-cobalt/60 focus:ring-2 focus:ring-cobalt/20;
+  }
+
+  button {
+    @apply rounded-xl border px-3.5 py-2 text-sm font-semibold tracking-[0.03em] transition disabled:cursor-not-allowed disabled:opacity-55;
+  }
+}
+
+@layer components {
+  .app-shell {
+    @apply relative mx-auto grid min-h-screen w-full max-w-6xl gap-6 px-4 py-6 lg:px-8;
+  }
+
+  .hero-panel {
+    @apply relative overflow-hidden rounded-3xl border border-line/80 bg-parchment/90 p-6 shadow-panel backdrop-blur;
+  }
+
+  .hero-panel::after {
+    content: "";
+    @apply pointer-events-none absolute inset-0 bg-grain bg-[length:5px_5px] opacity-35;
+  }
+
+  .eyebrow {
+    @apply relative z-10 m-0 text-xs font-semibold uppercase tracking-[0.32em] text-ink-soft;
+  }
+
+  .hero-panel h1 {
+    @apply relative z-10 mt-2 text-3xl leading-tight text-ink sm:text-4xl;
+  }
+
+  .hero-copy {
+    @apply relative z-10 mb-0 mt-3 max-w-3xl text-sm leading-relaxed text-ink-soft;
+  }
+
+  .hero-meta {
+    @apply relative z-10 mt-5 flex flex-wrap gap-2;
+  }
+
+  .meta-pill {
+    @apply rounded-full border border-line/90 bg-sand/60 px-3 py-1 text-xs font-semibold text-ink-soft;
+  }
+
+  .workspace-grid {
+    @apply grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)];
+  }
+
+  .stack {
+    @apply grid gap-6;
+  }
+
+  .panel {
+    @apply rounded-2xl border border-line/90 bg-parchment/90 p-5 shadow-panel backdrop-blur;
+  }
+
+  .panel-heading {
+    @apply grid gap-1;
+  }
+
+  .panel-heading h2 {
+    @apply m-0 text-xl text-ink;
+  }
+
+  .panel-heading p {
+    @apply m-0 text-sm text-ink-soft;
+  }
+
+  .panel-heading.compact p {
+    @apply text-xs;
+  }
+
+  .credentials-panel {
+    @apply h-fit;
+  }
+
+  .fields {
+    @apply mt-4 grid gap-3;
+  }
+
+  .field-label {
+    @apply grid gap-1.5 text-xs font-semibold uppercase tracking-[0.09em] text-ink-soft;
+  }
+
+  .controls-panel {
+    @apply grid gap-4;
+  }
+
+  .actions {
+    @apply grid gap-2 sm:grid-cols-2;
+  }
+
+  .actions button {
+    @apply w-full;
+  }
+
+  .primary {
+    @apply border-cobalt/60 bg-cobalt text-white hover:bg-cobalt/90;
+  }
+
+  .secondary {
+    @apply border-line bg-sand/70 text-ink hover:bg-sand;
+  }
+
+  .danger {
+    @apply border-ember/50 bg-ember text-[#fff4ee] hover:bg-ember/90;
+  }
+
+  .ghost {
+    @apply border-line/90 bg-parchment text-ink-soft hover:border-cobalt/40 hover:text-cobalt;
+  }
+
+  .status-strip {
+    @apply rounded-xl border border-line/90 bg-sand/40 p-3;
+  }
+
+  .status {
+    @apply m-0 inline-flex w-fit items-center rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.11em];
+  }
+
+  .status-idle {
+    @apply border-line bg-parchment text-ink-soft;
+  }
+
+  .status-running {
+    @apply border-mint/60 bg-mint/20 text-mint;
+  }
+
+  .status-starting,
+  .status-stopping {
+    @apply border-cobalt/40 bg-cobalt/10 text-cobalt;
+  }
+
+  .status-disconnected,
+  .status-error {
+    @apply border-ember/60 bg-ember/10 text-ember;
+  }
+
+  .status-detail {
+    @apply mb-0 mt-2 text-sm text-ink-soft;
+  }
+
+  .logs-panel {
+    @apply grid gap-3;
+  }
+
+  .logs-head {
+    @apply flex flex-wrap items-center justify-between gap-3;
+  }
+
+  .stream-pill {
+    @apply rounded-full border px-3 py-1 text-[0.66rem] font-semibold uppercase tracking-[0.15em];
+  }
+
+  .stream-idle {
+    @apply border-line bg-sand/50 text-ink-soft;
+  }
+
+  .stream-live {
+    @apply border-mint/60 bg-mint/20 text-mint animate-pulse-soft;
+  }
+
+  .stream-error {
+    @apply border-ember/50 bg-ember/20 text-ember;
+  }
+
+  #logs {
+    @apply m-0 max-h-[420px] min-h-[280px] overflow-auto rounded-xl border border-line/90 bg-[#f3ecdf] p-3 font-mono text-xs leading-relaxed text-[#2d271f];
+  }
+
+  @media (max-width: 640px) {
+    .actions {
+      @apply grid-cols-1;
+    }
+  }
+}
