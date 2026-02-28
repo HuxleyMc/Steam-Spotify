@@ -24,15 +24,20 @@
 
       <section class="workspace-grid">
         <section class="panel credentials-panel">
-          <div class="panel-heading">
-            <h2>Credentials</h2>
-            <p>
-              Settings are saved in local app storage and injected when the sync
-              process starts.
-            </p>
+          <div class="panel-heading panel-heading-row">
+            <div class="panel-heading">
+              <h2>Credentials</h2>
+              <p>
+                Settings are saved in local app storage and injected when the
+                sync process starts.
+              </p>
+            </div>
+            <button id="credentialsToggleButton" class="ghost" type="button">
+              Hide Credentials
+            </button>
           </div>
 
-          <div class="fields">
+          <div id="credentialsFields" class="fields">
             <label class="field-label">
               Spotify Client ID
               <input id="clientId" type="text" autocomplete="off" />
@@ -87,9 +92,7 @@
               <button id="restartButton" class="secondary" disabled>
                 Restart Sync
               </button>
-              <button id="stopButton" class="danger" disabled>
-                Stop Sync
-              </button>
+              <button id="stopButton" class="danger" disabled>Stop Sync</button>
               <button id="loginButton" class="secondary" disabled>
                 Open Spotify Login
               </button>
@@ -103,7 +106,19 @@
 
             <div class="status-strip">
               <p id="status" class="status status-idle">Status: idle</p>
-              <p id="statusDetail" class="status-detail">Sync is not running.</p>
+              <p id="statusDetail" class="status-detail">
+                Sync is not running.
+              </p>
+            </div>
+
+            <div class="steam-status-strip">
+              <p class="steam-status-heading">Steam session</p>
+              <p id="steamStatus" class="steam-status steam-state-idle">
+                Steam: idle
+              </p>
+              <p id="steamStatusDetail" class="steam-status-detail">
+                Waiting for sync to start.
+              </p>
             </div>
 
             <div id="steamGuardPrompt" class="guard-prompt" hidden>
@@ -118,7 +133,11 @@
                   autocomplete="one-time-code"
                   placeholder="Steam Guard code"
                 />
-                <button id="steamGuardSubmitButton" class="primary" type="button">
+                <button
+                  id="steamGuardSubmitButton"
+                  class="primary"
+                  type="button"
+                >
                   Submit Code
                 </button>
               </div>
@@ -131,7 +150,9 @@
                 <h2>Live Logs</h2>
                 <p id="logCount">0 lines captured</p>
               </div>
-              <span id="streamState" class="stream-pill stream-idle">stream idle</span>
+              <span id="streamState" class="stream-pill stream-idle"
+                >stream idle</span
+              >
             </div>
             <pre id="logs" aria-live="polite"></pre>
           </section>

@@ -15,16 +15,28 @@ const loginButton = document.querySelector("#loginButton");
 const steamGuardOpenButton = document.querySelector("#steamGuardOpenButton");
 const clearLogsButton = document.querySelector("#clearLogsButton");
 const steamGuardPrompt = document.querySelector("#steamGuardPrompt");
-const steamGuardPromptDetail = document.querySelector("#steamGuardPromptDetail");
+const steamGuardPromptDetail = document.querySelector(
+  "#steamGuardPromptDetail"
+);
 const steamGuardPromptInput = document.querySelector("#steamGuardPromptInput");
-const steamGuardSubmitButton = document.querySelector("#steamGuardSubmitButton");
+const steamGuardSubmitButton = document.querySelector(
+  "#steamGuardSubmitButton"
+);
 const statusEl = document.querySelector("#status");
 const statusDetailEl = document.querySelector("#statusDetail");
+const steamStatusEl = document.querySelector("#steamStatus");
+const steamStatusDetailEl = document.querySelector("#steamStatusDetail");
 const logsEl = document.querySelector("#logs");
 const logCountEl = document.querySelector("#logCount");
 const streamStateEl = document.querySelector("#streamState");
+const credentialsFieldsEl = document.querySelector("#credentialsFields");
+const credentialsToggleButton = document.querySelector(
+  "#credentialsToggleButton"
+);
 
 const steamGuardMarker = "STEAM_GUARD_REQUIRED";
+const steamUiStatusMarker = "STEAM_UI_STATUS";
+const credentialsCollapsedStorageKey = "steamSpotify.credentialsCollapsed";
 
 let syncRunning = false;
 let actionInProgress = false;
@@ -40,6 +52,15 @@ const statusClassNames = [
 ];
 
 const streamClassNames = ["stream-idle", "stream-live", "stream-error"];
+const steamStatusClassNames = [
+  "steam-state-idle",
+  "steam-state-connecting",
+  "steam-state-guard",
+  "steam-state-connected",
+  "steam-state-playing",
+  "steam-state-disconnected",
+  "steam-state-error",
+];
 
 const statusVariants = {
   idle: {
@@ -98,6 +119,44 @@ const streamByStatus = {
   error: "error",
 };
 
+const steamStatusVariants = {
+  idle: {
+    className: "steam-state-idle",
+    label: "Steam: idle",
+    detail: "Waiting for sync to start.",
+  },
+  connecting: {
+    className: "steam-state-connecting",
+    label: "Steam: connecting",
+    detail: "Attempting Steam login.",
+  },
+  guard: {
+    className: "steam-state-guard",
+    label: "Steam: guard required",
+    detail: "Steam Guard code is required.",
+  },
+  connected: {
+    className: "steam-state-connected",
+    label: "Steam: connected",
+    detail: "Steam session is authenticated.",
+  },
+  playing: {
+    className: "steam-state-playing",
+    label: "Steam: status set",
+    detail: "Steam presence was updated.",
+  },
+  disconnected: {
+    className: "steam-state-disconnected",
+    label: "Steam: disconnected",
+    detail: "Steam disconnected.",
+  },
+  error: {
+    className: "steam-state-error",
+    label: "Steam: error",
+    detail: "Steam integration reported an error.",
+  },
+};
+
 const setStreamState = (state) => {
   if (!streamStateEl) {
     return;
@@ -107,6 +166,77 @@ const setStreamState = (state) => {
   streamStateEl.classList.remove(...streamClassNames);
   streamStateEl.classList.add(variant.className);
   streamStateEl.textContent = variant.label;
+};
+
+const setSteamStatus = (state, detail) => {
+  if (!steamStatusEl || !steamStatusDetailEl) {
+    return;
+  }
+
+  const variant = steamStatusVariants[state] ?? steamStatusVariants.error;
+  steamStatusEl.classList.remove(...steamStatusClassNames);
+  steamStatusEl.classList.add(variant.className);
+  steamStatusEl.textContent = variant.label;
+  steamStatusDetailEl.textContent = detail ?? variant.detail;
+};
+
+const parseSteamUiStatus = (line) => {
+  const markerIndex = line.indexOf(steamUiStatusMarker);
+  if (markerIndex === -1) {
+    return null;
+  }
+
+  const payload = line.slice(markerIndex + steamUiStatusMarker.length).trim();
+  const stateMatch = payload.match(/\bstate=([a-z-]+)/i);
+  if (!stateMatch) {
+    return null;
+  }
+
+  const rawDetail = payload.match(/\bdetail=([^\s]+)/)?.[1];
+  let detail;
+  if (rawDetail) {
+    try {
+      detail = decodeURIComponent(rawDetail);
+    } catch {
+      detail = rawDetail;
+    }
+  }
+
+  return {
+    state: stateMatch[1].toLowerCase(),
+    detail,
+  };
+};
+
+const setCredentialsCollapsed = (collapsed) => {
+  if (!credentialsFieldsEl || !credentialsToggleButton) {
+    return;
+  }
+
+  credentialsFieldsEl.hidden = collapsed;
+  credentialsToggleButton.textContent = collapsed
+    ? "Show Credentials"
+    : "Hide Credentials";
+  credentialsToggleButton.setAttribute("aria-expanded", String(!collapsed));
+};
+
+const loadCollapsedCredentialsPreference = () => {
+  try {
+    return window.localStorage.getItem(credentialsCollapsedStorageKey) === "1";
+  } catch {
+    return false;
+  }
+};
+
+const saveCollapsedCredentialsPreference = (collapsed) => {
+  try {
+    window.localStorage.setItem(
+      credentialsCollapsedStorageKey,
+      collapsed ? "1" : "0"
+    );
+  } catch {
+    // Ignore storage write failures; toggle still works for this session.
+  }
 };
 
 const updateLogCount = () => {
@@ -196,7 +326,8 @@ const getSettings = () => {
 const applySettings = (settings) => {
   clientId.value = settings.clientId ?? "";
   clientSecret.value = settings.clientSecret ?? "";
-  redirectUri.value = settings.spotifyRedirectUri ?? "http://127.0.0.1:8888/callback";
+  redirectUri.value =
+    settings.spotifyRedirectUri ?? "http://127.0.0.1:8888/callback";
   steamUsername.value = settings.steamUsername ?? "";
   steamPassword.value = settings.steamPassword ?? "";
   notPlaying.value = settings.notPlaying ?? "Monkey";
@@ -260,6 +391,7 @@ const handleLifecycleEvent = (payload) => {
   switch (payload.state) {
     case "starting":
       setStatus("starting", payload.message || undefined);
+      setSteamStatus("connecting", "Starting Steam login...");
       break;
     case "running":
       syncRunning = true;
@@ -275,6 +407,7 @@ const handleLifecycleEvent = (payload) => {
       hideSteamGuardPrompt();
       syncControls();
       setStatus("idle", payload.message || undefined);
+      setSteamStatus("idle", "Sync process is not running.");
       break;
     case "exited": {
       syncRunning = false;
@@ -286,6 +419,7 @@ const handleLifecycleEvent = (payload) => {
           ? `Sync process exited with code ${payload.exitCode}.`
           : undefined);
       setStatus("disconnected", detail);
+      setSteamStatus("disconnected", "Sync process exited.");
       break;
     }
     case "error":
@@ -293,17 +427,29 @@ const handleLifecycleEvent = (payload) => {
       hideSteamGuardPrompt();
       syncControls();
       setStatus("error", payload.message || undefined);
+      setSteamStatus("error", payload.message || undefined);
       break;
     default:
       break;
   }
 };
 
+if (credentialsToggleButton) {
+  setCredentialsCollapsed(loadCollapsedCredentialsPreference());
+
+  credentialsToggleButton.addEventListener("click", () => {
+    const collapsed = !(credentialsFieldsEl?.hidden ?? false);
+    setCredentialsCollapsed(collapsed);
+    saveCollapsedCredentialsPreference(collapsed);
+  });
+}
+
 if (invoke && listen) {
   updateLogCount();
   hideSteamGuardPrompt();
   syncControls();
   setStatus("idle");
+  setSteamStatus("idle");
 
   startButton.addEventListener("click", async () => {
     const settings = getSettings();
@@ -401,6 +547,7 @@ if (invoke && listen) {
   steamGuardOpenButton?.addEventListener("click", () => {
     showSteamGuardPrompt("Enter your latest Steam Guard code.");
     setStatus("starting", "Waiting for Steam Guard code...");
+    setSteamStatus("guard", "Enter your latest Steam Guard code.");
   });
 
   clearLogsButton?.addEventListener("click", () => {
@@ -425,10 +572,15 @@ if (invoke && listen) {
       appendLog("[ui] Submitted Steam Guard code.");
       hideSteamGuardPrompt();
       setStatus("starting", "Submitted Steam Guard code. Waiting for login...");
+      setSteamStatus(
+        "connecting",
+        "Submitted Steam Guard code. Waiting for login..."
+      );
     } catch (error) {
       const message = formatError(error);
       appendLog(`[ui] Failed to submit Steam Guard code: ${message}`);
       setStatus("error", `Failed to submit Steam Guard code: ${message}`);
+      setSteamStatus("error", `Failed to submit Steam Guard code: ${message}`);
     }
   });
 
@@ -444,22 +596,35 @@ if (invoke && listen) {
   listen("sync-log", (event) => {
     const payload = event.payload;
     const line =
-      typeof payload === "string" ? payload : `[${payload.stream}] ${payload.line}`;
+      typeof payload === "string"
+        ? payload
+        : `[${payload.stream}] ${payload.line}`;
+    const steamStatusUpdate = parseSteamUiStatus(line);
+
+    if (steamStatusUpdate) {
+      setSteamStatus(steamStatusUpdate.state, steamStatusUpdate.detail);
+      return;
+    }
 
     if (line.includes(steamGuardMarker)) {
       const domainMatch = line.match(/domain=([^\s]+)/);
       const retry = /retry=true/.test(line);
-      const domain = domainMatch?.[1] && domainMatch[1] !== "unknown" ? domainMatch[1] : null;
+      const domain =
+        domainMatch?.[1] && domainMatch[1] !== "unknown"
+          ? domainMatch[1]
+          : null;
       const detail = retry
         ? "Previous code was invalid. Enter a new Steam Guard code."
         : domain
-          ? `Enter the Steam Guard code sent to ${domain}.`
-          : "Enter the latest Steam Guard code to continue login.";
+        ? `Enter the Steam Guard code sent to ${domain}.`
+        : "Enter the latest Steam Guard code to continue login.";
 
       showSteamGuardPrompt(detail);
       setStatus("starting", "Steam Guard code required.");
+      setSteamStatus("guard", detail);
     } else if (line.includes("Logged into Steam")) {
       hideSteamGuardPrompt();
+      setSteamStatus("connected", "Logged into Steam.");
     }
 
     appendLog(line);
@@ -492,9 +657,10 @@ if (invoke && listen) {
     });
 } else {
   appendLog(
-    "[ui] Tauri API is unavailable. Run this UI through the Tauri app, not a regular browser.",
+    "[ui] Tauri API is unavailable. Run this UI through the Tauri app, not a regular browser."
   );
   setStatus("error", "Tauri API unavailable in this context.");
+  setSteamStatus("error", "Tauri API unavailable in this context.");
   setStreamState("error");
   hideSteamGuardPrompt();
   syncControls();

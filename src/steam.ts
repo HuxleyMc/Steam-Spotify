@@ -6,16 +6,31 @@ const client = new SteamUser({
   protocol: SteamUser.EConnectionProtocol.TCP,
 });
 const STEAM_GUARD_REQUIRED_MARKER = "STEAM_GUARD_REQUIRED";
+const STEAM_UI_STATUS_MARKER = "STEAM_UI_STATUS";
 const STEAM_LOGIN_TIMEOUT_MS = 90_000;
 let steamLogHandlersBound = false;
 let steamGuardInputBound = false;
 let steamGuardInputBuffer = "";
 let steamGuardCodeSubmittedHook: ((code: string) => void) | null = null;
+let lastSteamUiStatusSignature = "";
 const pendingSteamGuardCodes: string[] = [];
 const steamGuardWaiters: Array<{
   resolve: (code: string) => void;
   reject: (error: Error) => void;
 }> = [];
+
+const emitSteamUiStatus = (state: string, detail: string) => {
+  const signature = `${state}|${detail}`;
+  if (signature === lastSteamUiStatusSignature) {
+    return;
+  }
+
+  lastSteamUiStatusSignature = signature;
+  const encodedDetail = encodeURIComponent(detail);
+  console.log(
+    `${STEAM_UI_STATUS_MARKER} state=${state} detail=${encodedDetail}`
+  );
+};
 
 const bindSteamRuntimeLogs = () => {
   if (steamLogHandlersBound) {
@@ -27,10 +42,15 @@ const bindSteamRuntimeLogs = () => {
   client.on("disconnected", (eresult, msg) => {
     const reason = msg ? `: ${msg}` : "";
     console.warn(`[steam] Disconnected (eresult=${eresult})${reason}`);
+    emitSteamUiStatus(
+      "disconnected",
+      `Steam disconnected (eresult=${eresult})${reason || "."}`
+    );
   });
 
   client.on("webSession", () => {
     console.log("[steam] Web session established.");
+    emitSteamUiStatus("connected", "Steam web session established.");
   });
 
   client.on("playingState", (blocked, playingApp) => {
@@ -115,6 +135,12 @@ const requestSteamGuardCode = (
   console.log(
     `${STEAM_GUARD_REQUIRED_MARKER} domain=${domainLabel} retry=${retryLabel}`
   );
+  emitSteamUiStatus(
+    "guard",
+    domain
+      ? `Steam Guard required for ${domain}.`
+      : "Steam Guard code required."
+  );
   console.error("Steam Guard challenge received.");
   if (domain) {
     console.error(`Enter the code sent by Steam to: ${domain}`);
@@ -141,6 +167,7 @@ const requestSteamGuardCode = (
 export const initSteam = async (username: string, password: string) => {
   bindSteamRuntimeLogs();
   console.log("[steam] Connection protocol: TCP");
+  emitSteamUiStatus("connecting", "Connecting to Steam...");
   console.log("Attempting Steam login...");
 
   return new Promise<SteamUser>((resolve, reject) => {
@@ -152,6 +179,7 @@ export const initSteam = async (username: string, password: string) => {
       console.log(
         "[steam] Steam Guard code submitted manually. Retrying logon with provided code."
       );
+      emitSteamUiStatus("connecting", "Submitting Steam Guard code...");
       client.logOn({
         accountName: username,
         password: password,
@@ -177,6 +205,7 @@ export const initSteam = async (username: string, password: string) => {
       settled = true;
       clearTimeout(timeout);
       console.log("Logged into Steam");
+      emitSteamUiStatus("connected", "Logged into Steam.");
       client.setPersona(SteamUser.EPersonaState.Online);
       cleanup();
       resolve(client);
@@ -189,6 +218,10 @@ export const initSteam = async (username: string, password: string) => {
       settled = true;
       clearTimeout(timeout);
       console.error("Failed to login to steam: ", error);
+      emitSteamUiStatus(
+        "error",
+        `Steam login failed: ${error.message || "unknown error"}.`
+      );
       console.error(
         "Verify STEAMUSERNAME and STEAMPASSWORD in .env, then try again."
       );
@@ -209,6 +242,7 @@ export const initSteam = async (username: string, password: string) => {
       requestSteamGuardCode(domain, lastCodeWrong)
         .then((code) => {
           console.log("Submitting Steam Guard code...");
+          emitSteamUiStatus("connecting", "Submitting Steam Guard code...");
           callback(code);
         })
         .catch((error) => {
@@ -218,6 +252,12 @@ export const initSteam = async (username: string, password: string) => {
           settled = true;
           clearTimeout(timeout);
           console.error("Failed to obtain Steam Guard code:", error);
+          emitSteamUiStatus(
+            "error",
+            `Failed to obtain Steam Guard code: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          );
           cleanup();
           reject(error);
         });
@@ -230,6 +270,10 @@ export const initSteam = async (username: string, password: string) => {
       settled = true;
       clearTimeout(timeout);
       const reason = msg ? ` (${msg})` : "";
+      emitSteamUiStatus(
+        "disconnected",
+        `Steam disconnected during login (eresult=${eresult})${reason}`
+      );
       reject(
         new Error(
           `Steam disconnected during login (eresult=${eresult})${reason}`
@@ -275,17 +319,20 @@ export const updatePlayingSong = async (
             .map(({ name }) => name)
             .join(", ")}`;
           client.gamesPlayed(playing);
+          emitSteamUiStatus("playing", `Steam status: ${playing}`);
           currentId = songId;
         }
       } else {
         if (currentId !== notPlaying) {
           console.log("Not playing anything");
           client.gamesPlayed(notPlaying);
+          emitSteamUiStatus("idle", `Steam status: ${notPlaying}`);
           currentId = notPlaying;
         }
       }
     } catch (error) {
       console.error("Failed to fetch current Spotify playback:", error);
+      emitSteamUiStatus("error", "Spotify playback fetch failed; retrying.");
     }
   }, 2000);
 };
