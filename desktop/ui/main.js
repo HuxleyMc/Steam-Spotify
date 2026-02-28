@@ -12,6 +12,7 @@ const startButton = document.querySelector("#startButton");
 const restartButton = document.querySelector("#restartButton");
 const stopButton = document.querySelector("#stopButton");
 const loginButton = document.querySelector("#loginButton");
+const steamGuardOpenButton = document.querySelector("#steamGuardOpenButton");
 const clearLogsButton = document.querySelector("#clearLogsButton");
 const steamGuardPrompt = document.querySelector("#steamGuardPrompt");
 const steamGuardPromptDetail = document.querySelector("#steamGuardPromptDetail");
@@ -221,6 +222,7 @@ const syncControls = () => {
     restartButton.disabled = true;
     stopButton.disabled = true;
     loginButton.disabled = true;
+    steamGuardOpenButton.disabled = true;
     if (steamGuardSubmitButton) {
       steamGuardSubmitButton.disabled = true;
     }
@@ -231,6 +233,7 @@ const syncControls = () => {
   restartButton.disabled = actionInProgress || !syncRunning;
   stopButton.disabled = actionInProgress || !syncRunning;
   loginButton.disabled = actionInProgress || !syncRunning;
+  steamGuardOpenButton.disabled = actionInProgress || !syncRunning;
 
   if (steamGuardSubmitButton) {
     const promptVisible = Boolean(steamGuardPrompt) && !steamGuardPrompt.hidden;
@@ -395,6 +398,11 @@ if (invoke && listen) {
     }
   });
 
+  steamGuardOpenButton?.addEventListener("click", () => {
+    showSteamGuardPrompt("Enter your latest Steam Guard code.");
+    setStatus("starting", "Waiting for Steam Guard code...");
+  });
+
   clearLogsButton?.addEventListener("click", () => {
     logsEl.textContent = "";
     logLineCount = 0;
@@ -414,6 +422,7 @@ if (invoke && listen) {
         appendLog("[ui] Sending Steam Guard code...");
         await invoke("submit_steam_guard_code", { code });
       });
+      appendLog("[ui] Submitted Steam Guard code.");
       hideSteamGuardPrompt();
       setStatus("starting", "Submitted Steam Guard code. Waiting for login...");
     } catch (error) {
