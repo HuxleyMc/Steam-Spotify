@@ -130,6 +130,8 @@ const hideSteamGuardPrompt = () => {
   if (steamGuardPromptInput) {
     steamGuardPromptInput.value = "";
   }
+
+  syncControls();
 };
 
 const showSteamGuardPrompt = (detail) => {
@@ -148,6 +150,8 @@ const showSteamGuardPrompt = (detail) => {
   if (steamGuardPromptInput) {
     steamGuardPromptInput.focus();
   }
+
+  syncControls();
 };
 
 const appendLog = (line) => {
@@ -404,6 +408,15 @@ if (invoke && listen) {
       appendLog(`[ui] Failed to submit Steam Guard code: ${error}`);
       setStatus("error", "Failed to submit Steam Guard code.");
     }
+  });
+
+  steamGuardPromptInput?.addEventListener("keydown", async (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    steamGuardSubmitButton?.click();
   });
 
   listen("sync-log", (event) => {
