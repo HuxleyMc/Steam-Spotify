@@ -64,11 +64,6 @@
             </label>
 
             <label class="field-label">
-              Steam Guard Code (optional)
-              <input id="steamGuardCode" type="text" autocomplete="off" />
-            </label>
-
-            <label class="field-label">
               Fallback status
               <input
                 id="notPlaying"
@@ -106,6 +101,24 @@
             <div class="status-strip">
               <p id="status" class="status status-idle">Status: idle</p>
               <p id="statusDetail" class="status-detail">Sync is not running.</p>
+            </div>
+
+            <div id="steamGuardPrompt" class="guard-prompt" hidden>
+              <p class="guard-title">Steam Guard Challenge</p>
+              <p id="steamGuardPromptDetail" class="guard-copy">
+                Enter the latest Steam Guard code to continue login.
+              </p>
+              <div class="guard-actions">
+                <input
+                  id="steamGuardPromptInput"
+                  type="text"
+                  autocomplete="one-time-code"
+                  placeholder="Steam Guard code"
+                />
+                <button id="steamGuardSubmitButton" class="primary" type="button">
+                  Submit Code
+                </button>
+              </div>
             </div>
           </section>
 

@@ -116,7 +116,8 @@ If startup says required env vars are missing:
 
 - Re-check `STEAMUSERNAME` and `STEAMPASSWORD`
 - Confirm account credentials are valid
-- If prompted for Steam Guard, set `STEAMGUARD` with the current code and restart
+- If prompted for Steam Guard in desktop, submit the code in the in-app prompt
+- For CLI runs, set `STEAMGUARD` or type the code when prompted on stdin
 
 ### Need more help?
 

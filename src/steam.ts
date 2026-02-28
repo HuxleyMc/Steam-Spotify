@@ -3,6 +3,78 @@ import SteamUser from "steam-user";
 import { SpotifyClient } from "./spotify";
 
 const client = new SteamUser({});
+const STEAM_GUARD_REQUIRED_MARKER = "STEAM_GUARD_REQUIRED";
+
+const requestSteamGuardCode = (
+  domain: string | null,
+  lastCodeWrong: boolean
+): Promise<string> => {
+  const configuredCode = process.env.STEAMGUARD?.trim();
+  if (configuredCode) {
+    console.log("Steam Guard challenge received. Using STEAMGUARD code.");
+    return Promise.resolve(configuredCode);
+  }
+
+  const domainLabel = domain || "unknown";
+  const retryLabel = lastCodeWrong ? "true" : "false";
+  console.log(
+    `${STEAM_GUARD_REQUIRED_MARKER} domain=${domainLabel} retry=${retryLabel}`
+  );
+  console.error("Steam Guard challenge received.");
+  if (domain) {
+    console.error(`Enter the code sent by Steam to: ${domain}`);
+  }
+  if (lastCodeWrong) {
+    console.error("The previous Steam Guard code was incorrect.");
+  }
+  console.error(
+    "Awaiting Steam Guard code from stdin (desktop prompt or terminal input)."
+  );
+
+  return new Promise<string>((resolve, reject) => {
+    process.stdin.setEncoding("utf8");
+    process.stdin.resume();
+
+    let buffered = "";
+
+    const cleanup = () => {
+      process.stdin.removeListener("data", onData);
+      process.stdin.removeListener("end", onEnd);
+      process.stdin.removeListener("error", onError);
+    };
+
+    const onData = (chunk: string | Buffer) => {
+      buffered += chunk.toString();
+      const lines = buffered.split(/\r?\n/);
+      buffered = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const code = line.trim();
+        if (!code) {
+          continue;
+        }
+
+        cleanup();
+        resolve(code);
+        return;
+      }
+    };
+
+    const onEnd = () => {
+      cleanup();
+      reject(new Error("stdin ended before receiving Steam Guard code."));
+    };
+
+    const onError = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+
+    process.stdin.on("data", onData);
+    process.stdin.on("end", onEnd);
+    process.stdin.on("error", onError);
+  });
+};
 
 export const initSteam = async (username: string, password: string) => {
   console.log("Attempting Steam login...");
@@ -26,25 +98,19 @@ export const initSteam = async (username: string, password: string) => {
 
     const onSteamGuard = (
       domain: string | null,
-      callback: (code: string) => void
+      callback: (code: string) => void,
+      lastCodeWrong = false
     ) => {
-      const configuredCode = process.env.STEAMGUARD?.trim();
-
-      if (configuredCode) {
-        console.log("Steam Guard challenge received. Using STEAMGUARD code.");
-        callback(configuredCode);
-        return;
-      }
-
-      console.error("Steam Guard challenge received.");
-      if (domain) {
-        console.error(`Enter the code sent by Steam to: ${domain}`);
-      }
-      console.error(
-        "Set STEAMGUARD in your environment (or desktop settings) and restart sync."
-      );
-      cleanup();
-      reject(new Error("Steam Guard code required."));
+      requestSteamGuardCode(domain, lastCodeWrong)
+        .then((code) => {
+          console.log("Submitting Steam Guard code...");
+          callback(code);
+        })
+        .catch((error) => {
+          console.error("Failed to obtain Steam Guard code:", error);
+          cleanup();
+          reject(error);
+        });
     };
 
     const cleanup = () => {

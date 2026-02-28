@@ -165,6 +165,26 @@
     @apply mb-0 mt-2 text-sm text-ink-soft;
   }
 
+  .guard-prompt {
+    @apply grid gap-2 rounded-xl border border-ember/50 bg-ember/10 p-3;
+  }
+
+  .guard-title {
+    @apply m-0 text-xs font-semibold uppercase tracking-[0.13em] text-ember;
+  }
+
+  .guard-copy {
+    @apply m-0 text-sm text-ink-soft;
+  }
+
+  .guard-actions {
+    @apply grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto];
+  }
+
+  .guard-actions button {
+    @apply w-full sm:w-auto;
+  }
+
   .logs-panel {
     @apply grid gap-3;
   }

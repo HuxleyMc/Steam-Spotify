@@ -4,7 +4,7 @@
 
 - App boots through `src/index.ts` orchestration.
 - Spotify OAuth callback defaults to `http://127.0.0.1:8888/callback` and can be overridden with `SPOTIFY_REDIRECT_URI`.
-- Steam Guard challenges can be answered with optional `STEAMGUARD` env input.
+- Steam Guard challenges can be answered via stdin prompt (desktop uses in-app prompt) or optional `STEAMGUARD` env input.
 - Steam status updates run in a recurring polling loop.
 
 ## Error Handling

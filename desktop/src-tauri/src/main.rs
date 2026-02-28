@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs::{create_dir_all, read_to_string, write};
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -20,7 +20,6 @@ struct SyncSettings {
     spotify_redirect_uri: Option<String>,
     steam_username: String,
     steam_password: String,
-    steam_guard_code: Option<String>,
     not_playing: String,
 }
 
@@ -374,7 +373,6 @@ fn start_sync(
         spotify_redirect_uri,
         steam_username,
         steam_password,
-        steam_guard_code,
         not_playing,
     } = settings;
 
@@ -394,6 +392,7 @@ fn start_sync(
         .env("STEAMUSERNAME", steam_username)
         .env("STEAMPASSWORD", steam_password)
         .env("NOTPLAYING", not_playing)
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
@@ -401,13 +400,6 @@ fn start_sync(
         let trimmed = redirect_uri.trim();
         if !trimmed.is_empty() {
             command.env("SPOTIFY_REDIRECT_URI", trimmed);
-        }
-    }
-
-    if let Some(guard_code) = steam_guard_code {
-        let trimmed = guard_code.trim();
-        if !trimmed.is_empty() {
-            command.env("STEAMGUARD", trimmed);
         }
     }
 
@@ -502,6 +494,57 @@ fn stop_sync(app_handle: AppHandle, state: State<'_, SyncState>) -> Result<(), S
 }
 
 #[tauri::command]
+fn submit_steam_guard_code(
+    app_handle: AppHandle,
+    state: State<'_, SyncState>,
+    code: String,
+) -> Result<(), String> {
+    let trimmed = code.trim();
+    if trimmed.is_empty() {
+        return Err("Steam Guard code cannot be empty.".to_string());
+    }
+
+    let mut guard = state
+        .child
+        .lock()
+        .map_err(|_| "Failed to lock process state".to_string())?;
+
+    let Some(child) = guard.as_mut() else {
+        return Err("Sync is not running.".to_string());
+    };
+
+    match child.try_wait() {
+        Ok(Some(_)) => {
+            *guard = None;
+            return Err("Sync is not running.".to_string());
+        }
+        Ok(None) => {}
+        Err(err) => return Err(format!("Failed to inspect sync process: {err}")),
+    }
+
+    let Some(stdin) = child.stdin.as_mut() else {
+        return Err("Sync process input is unavailable.".to_string());
+    };
+
+    stdin
+        .write_all(trimmed.as_bytes())
+        .map_err(|err| format!("Failed to send Steam Guard code: {err}"))?;
+    stdin
+        .write_all(b"\n")
+        .map_err(|err| format!("Failed to send Steam Guard code: {err}"))?;
+    stdin
+        .flush()
+        .map_err(|err| format!("Failed to flush Steam Guard code: {err}"))?;
+
+    emit_line(
+        &app_handle,
+        "ui",
+        "Submitted Steam Guard code to sync process.".to_string(),
+    );
+    Ok(())
+}
+
+#[tauri::command]
 fn open_spotify_login(state: State<'_, SyncState>) -> Result<(), String> {
     if !is_sync_running(&state)? {
         return Err(
@@ -556,6 +599,7 @@ pub fn run() {
             save_settings,
             start_sync,
             stop_sync,
+            submit_steam_guard_code,
             open_spotify_login
         ])
         .run(tauri::generate_context!())

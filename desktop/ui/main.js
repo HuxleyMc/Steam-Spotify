@@ -7,21 +7,28 @@ const clientSecret = document.querySelector("#clientSecret");
 const redirectUri = document.querySelector("#redirectUri");
 const steamUsername = document.querySelector("#steamUsername");
 const steamPassword = document.querySelector("#steamPassword");
-const steamGuardCode = document.querySelector("#steamGuardCode");
 const notPlaying = document.querySelector("#notPlaying");
 const startButton = document.querySelector("#startButton");
 const restartButton = document.querySelector("#restartButton");
 const stopButton = document.querySelector("#stopButton");
 const loginButton = document.querySelector("#loginButton");
 const clearLogsButton = document.querySelector("#clearLogsButton");
+const steamGuardPrompt = document.querySelector("#steamGuardPrompt");
+const steamGuardPromptDetail = document.querySelector("#steamGuardPromptDetail");
+const steamGuardPromptInput = document.querySelector("#steamGuardPromptInput");
+const steamGuardSubmitButton = document.querySelector("#steamGuardSubmitButton");
 const statusEl = document.querySelector("#status");
 const statusDetailEl = document.querySelector("#statusDetail");
 const logsEl = document.querySelector("#logs");
 const logCountEl = document.querySelector("#logCount");
 const streamStateEl = document.querySelector("#streamState");
+
+const steamGuardMarker = "STEAM_GUARD_REQUIRED";
+
 let syncRunning = false;
 let actionInProgress = false;
 let logLineCount = 0;
+let steamGuardPending = false;
 
 const statusClassNames = [
   "status-idle",
@@ -111,6 +118,38 @@ const updateLogCount = () => {
   logCountEl.textContent = `${logLineCount} ${lineLabel} captured`;
 };
 
+const hideSteamGuardPrompt = () => {
+  steamGuardPending = false;
+
+  if (!steamGuardPrompt) {
+    return;
+  }
+
+  steamGuardPrompt.hidden = true;
+
+  if (steamGuardPromptInput) {
+    steamGuardPromptInput.value = "";
+  }
+};
+
+const showSteamGuardPrompt = (detail) => {
+  steamGuardPending = true;
+
+  if (!steamGuardPrompt) {
+    return;
+  }
+
+  steamGuardPrompt.hidden = false;
+
+  if (steamGuardPromptDetail) {
+    steamGuardPromptDetail.textContent = detail;
+  }
+
+  if (steamGuardPromptInput) {
+    steamGuardPromptInput.focus();
+  }
+};
+
 const appendLog = (line) => {
   logsEl.textContent += `${line}\n`;
   logLineCount += 1;
@@ -134,7 +173,6 @@ const getSettings = () => {
     spotifyRedirectUri: redirectUri.value.trim(),
     steamUsername: steamUsername.value.trim(),
     steamPassword: steamPassword.value,
-    steamGuardCode: steamGuardCode.value.trim(),
     notPlaying: notPlaying.value.trim() || "Monkey",
   };
 };
@@ -145,7 +183,6 @@ const applySettings = (settings) => {
   redirectUri.value = settings.spotifyRedirectUri ?? "http://127.0.0.1:8888/callback";
   steamUsername.value = settings.steamUsername ?? "";
   steamPassword.value = settings.steamPassword ?? "";
-  steamGuardCode.value = settings.steamGuardCode ?? "";
   notPlaying.value = settings.notPlaying ?? "Monkey";
 };
 
@@ -169,6 +206,9 @@ const syncControls = () => {
     restartButton.disabled = true;
     stopButton.disabled = true;
     loginButton.disabled = true;
+    if (steamGuardSubmitButton) {
+      steamGuardSubmitButton.disabled = true;
+    }
     return;
   }
 
@@ -176,6 +216,11 @@ const syncControls = () => {
   restartButton.disabled = actionInProgress || !syncRunning;
   stopButton.disabled = actionInProgress || !syncRunning;
   loginButton.disabled = actionInProgress || !syncRunning;
+
+  if (steamGuardSubmitButton) {
+    steamGuardSubmitButton.disabled =
+      actionInProgress || !syncRunning || !steamGuardPending;
+  }
 };
 
 const runAction = async (operation) => {
@@ -209,11 +254,13 @@ const handleLifecycleEvent = (payload) => {
     case "stopped":
     case "idle":
       syncRunning = false;
+      hideSteamGuardPrompt();
       syncControls();
       setStatus("idle", payload.message || undefined);
       break;
     case "exited": {
       syncRunning = false;
+      hideSteamGuardPrompt();
       syncControls();
       const detail =
         payload.message ||
@@ -225,6 +272,7 @@ const handleLifecycleEvent = (payload) => {
     }
     case "error":
       syncRunning = false;
+      hideSteamGuardPrompt();
       syncControls();
       setStatus("error", payload.message || undefined);
       break;
@@ -235,6 +283,7 @@ const handleLifecycleEvent = (payload) => {
 
 if (invoke && listen) {
   updateLogCount();
+  hideSteamGuardPrompt();
   syncControls();
   setStatus("idle");
 
@@ -248,6 +297,7 @@ if (invoke && listen) {
 
     try {
       await runAction(async () => {
+        hideSteamGuardPrompt();
         setStatus("starting", "Launching sync process...");
         await persistSettings();
         await invoke("start_sync", { settings });
@@ -272,6 +322,7 @@ if (invoke && listen) {
 
     try {
       await runAction(async () => {
+        hideSteamGuardPrompt();
         setStatus("starting", "Restarting sync process...");
         await persistSettings();
         await invoke("stop_sync");
@@ -293,7 +344,6 @@ if (invoke && listen) {
     redirectUri,
     steamUsername,
     steamPassword,
-    steamGuardCode,
     notPlaying,
   ]) {
     field.addEventListener("change", () => {
@@ -309,6 +359,7 @@ if (invoke && listen) {
         setStatus("stopping", "Stopping sync process...");
         await invoke("stop_sync");
         syncRunning = false;
+        hideSteamGuardPrompt();
         syncControls();
         setStatus("idle", "Sync process stopped.");
         appendLog("[ui] Stopped sync process.");
@@ -335,14 +386,48 @@ if (invoke && listen) {
     updateLogCount();
   });
 
-  listen("sync-log", (event) => {
-    const payload = event.payload;
-    if (typeof payload === "string") {
-      appendLog(payload);
+  steamGuardSubmitButton?.addEventListener("click", async () => {
+    const code = steamGuardPromptInput?.value.trim() ?? "";
+
+    if (!code) {
+      setStatus("error", "Steam Guard code is required.");
       return;
     }
 
-    appendLog(`[${payload.stream}] ${payload.line}`);
+    try {
+      await runAction(async () => {
+        await invoke("submit_steam_guard_code", { code });
+      });
+      hideSteamGuardPrompt();
+      setStatus("starting", "Submitted Steam Guard code. Waiting for login...");
+    } catch (error) {
+      appendLog(`[ui] Failed to submit Steam Guard code: ${error}`);
+      setStatus("error", "Failed to submit Steam Guard code.");
+    }
+  });
+
+  listen("sync-log", (event) => {
+    const payload = event.payload;
+    const line =
+      typeof payload === "string" ? payload : `[${payload.stream}] ${payload.line}`;
+
+    if (line.includes(steamGuardMarker)) {
+      const domainMatch = line.match(/domain=([^\s]+)/);
+      const retry = /retry=true/.test(line);
+      const domain = domainMatch?.[1] && domainMatch[1] !== "unknown" ? domainMatch[1] : null;
+      const detail = retry
+        ? "Previous code was invalid. Enter a new Steam Guard code."
+        : domain
+          ? `Enter the Steam Guard code sent to ${domain}.`
+          : "Enter the latest Steam Guard code to continue login.";
+
+      showSteamGuardPrompt(detail);
+      setStatus("starting", "Steam Guard code required.");
+    } else if (line.includes("Logged into Steam")) {
+      hideSteamGuardPrompt();
+    }
+
+    appendLog(line);
   });
 
   listen("sync-lifecycle", (event) => {
@@ -376,5 +461,6 @@ if (invoke && listen) {
   );
   setStatus("error", "Tauri API unavailable in this context.");
   setStreamState("error");
+  hideSteamGuardPrompt();
   syncControls();
 }
