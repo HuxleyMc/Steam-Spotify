@@ -4,6 +4,36 @@ import { SpotifyClient } from "./spotify";
 
 const client = new SteamUser({});
 const STEAM_GUARD_REQUIRED_MARKER = "STEAM_GUARD_REQUIRED";
+let steamLogHandlersBound = false;
+
+const bindSteamRuntimeLogs = () => {
+  if (steamLogHandlersBound) {
+    return;
+  }
+
+  steamLogHandlersBound = true;
+
+  client.on("disconnected", (eresult, msg) => {
+    const reason = msg ? `: ${msg}` : "";
+    console.warn(`[steam] Disconnected (eresult=${eresult})${reason}`);
+  });
+
+  client.on("webSession", () => {
+    console.log("[steam] Web session established.");
+  });
+
+  client.on("playingState", (blocked, playingApp) => {
+    console.log(
+      `[steam] Playing state updated (blocked=${blocked}, app=${playingApp}).`
+    );
+  });
+
+  if (process.env.STEAM_DEBUG?.trim() === "1") {
+    client.on("debug", (message) => {
+      console.log(`[steam-debug] ${message}`);
+    });
+  }
+};
 
 const requestSteamGuardCode = (
   domain: string | null,
@@ -77,6 +107,7 @@ const requestSteamGuardCode = (
 };
 
 export const initSteam = async (username: string, password: string) => {
+  bindSteamRuntimeLogs();
   console.log("Attempting Steam login...");
 
   return new Promise<SteamUser>((resolve, reject) => {

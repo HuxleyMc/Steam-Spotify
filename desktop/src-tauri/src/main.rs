@@ -499,6 +499,12 @@ fn submit_steam_guard_code(
     state: State<'_, SyncState>,
     code: String,
 ) -> Result<(), String> {
+    emit_line(
+        &app_handle,
+        "ui",
+        "Received Steam Guard code submission request.".to_string(),
+    );
+
     let trimmed = code.trim();
     if trimmed.is_empty() {
         return Err("Steam Guard code cannot be empty.".to_string());

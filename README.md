@@ -35,6 +35,7 @@ cp example.env .env
 - `STEAMUSERNAME` (Steam username)
 - `STEAMPASSWORD` (Steam password)
 - `STEAMGUARD` (optional one-time Steam Guard code, if challenged)
+- `STEAM_DEBUG` (optional; set `1` for verbose Steam logs)
 - `NOTPLAYING` (optional fallback text)
 - `SPOTIFY_REDIRECT_URI` (optional; default `http://127.0.0.1:8888/callback`)
 

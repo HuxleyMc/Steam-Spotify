@@ -28,7 +28,6 @@ const steamGuardMarker = "STEAM_GUARD_REQUIRED";
 let syncRunning = false;
 let actionInProgress = false;
 let logLineCount = 0;
-let steamGuardPending = false;
 
 const statusClassNames = [
   "status-idle",
@@ -119,8 +118,6 @@ const updateLogCount = () => {
 };
 
 const hideSteamGuardPrompt = () => {
-  steamGuardPending = false;
-
   if (!steamGuardPrompt) {
     return;
   }
@@ -135,8 +132,6 @@ const hideSteamGuardPrompt = () => {
 };
 
 const showSteamGuardPrompt = (detail) => {
-  steamGuardPending = true;
-
   if (!steamGuardPrompt) {
     return;
   }
@@ -168,6 +163,22 @@ const setStatus = (state, detail) => {
   statusEl.textContent = variant.label;
   statusDetailEl.textContent = detail ?? variant.detail;
   setStreamState(streamByStatus[state] ?? "error");
+};
+
+const formatError = (error) => {
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
 };
 
 const getSettings = () => {
@@ -222,8 +233,8 @@ const syncControls = () => {
   loginButton.disabled = actionInProgress || !syncRunning;
 
   if (steamGuardSubmitButton) {
-    steamGuardSubmitButton.disabled =
-      actionInProgress || !syncRunning || !steamGuardPending;
+    const promptVisible = Boolean(steamGuardPrompt) && !steamGuardPrompt.hidden;
+    steamGuardSubmitButton.disabled = actionInProgress || !promptVisible;
   }
 };
 
@@ -400,13 +411,15 @@ if (invoke && listen) {
 
     try {
       await runAction(async () => {
+        appendLog("[ui] Sending Steam Guard code...");
         await invoke("submit_steam_guard_code", { code });
       });
       hideSteamGuardPrompt();
       setStatus("starting", "Submitted Steam Guard code. Waiting for login...");
     } catch (error) {
-      appendLog(`[ui] Failed to submit Steam Guard code: ${error}`);
-      setStatus("error", "Failed to submit Steam Guard code.");
+      const message = formatError(error);
+      appendLog(`[ui] Failed to submit Steam Guard code: ${message}`);
+      setStatus("error", `Failed to submit Steam Guard code: ${message}`);
     }
   });
 
