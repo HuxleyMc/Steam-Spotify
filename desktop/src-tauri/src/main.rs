@@ -66,21 +66,45 @@ fn is_project_root(path: &Path) -> bool {
     path.join("package.json").exists() && path.join("src").join("index.ts").exists()
 }
 
-fn oauth_port_from_redirect_uri(redirect_uri: Option<&str>) -> u16 {
-    let Some(uri) = redirect_uri.map(str::trim).filter(|value| !value.is_empty()) else {
-        return 8888;
+fn oauth_port_from_redirect_uri(redirect_uri: Option<&str>) -> Option<u16> {
+    let Some(uri) = redirect_uri
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Some(8888);
     };
 
     let Some(without_scheme) = uri.strip_prefix("http://") else {
-        return 8888;
+        return Some(8888);
     };
 
     let host_and_port = without_scheme.split('/').next().unwrap_or_default();
     if let Some((_, port)) = host_and_port.rsplit_once(':') {
-        return port.parse::<u16>().unwrap_or(8888);
+        return Some(port.parse::<u16>().unwrap_or(8888));
     }
 
-    80
+    None
+}
+
+fn oauth_origin_from_redirect_uri(redirect_uri: Option<&str>) -> String {
+    let default_origin = "http://127.0.0.1:8888";
+    let Some(uri) = redirect_uri
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return default_origin.to_string();
+    };
+
+    let Some(without_scheme) = uri.strip_prefix("http://") else {
+        return default_origin.to_string();
+    };
+
+    let host_and_port = without_scheme.split('/').next().unwrap_or_default();
+    if host_and_port.is_empty() {
+        return default_origin.to_string();
+    }
+
+    format!("http://{host_and_port}")
 }
 
 #[cfg(unix)]
@@ -378,8 +402,16 @@ fn start_sync(
 
     #[cfg(unix)]
     {
-        let oauth_port = oauth_port_from_redirect_uri(spotify_redirect_uri.as_deref());
-        terminate_stale_listener_on_port(&app_handle, oauth_port);
+        if let Some(oauth_port) = oauth_port_from_redirect_uri(spotify_redirect_uri.as_deref()) {
+            terminate_stale_listener_on_port(&app_handle, oauth_port);
+        } else {
+            emit_line(
+                &app_handle,
+                "ui",
+                "Skipping OAuth listener cleanup because redirect URI has no explicit port."
+                    .to_string(),
+            );
+        }
     }
 
     let mut command = Command::new("bun");
@@ -551,19 +583,23 @@ fn submit_steam_guard_code(
 }
 
 #[tauri::command]
-fn open_spotify_login(state: State<'_, SyncState>) -> Result<(), String> {
+fn open_spotify_login(
+    state: State<'_, SyncState>,
+    spotify_redirect_uri: Option<String>,
+) -> Result<(), String> {
     if !is_sync_running(&state)? {
         return Err(
             "Sync is not running yet. Click Start Sync first, then open Spotify login.".to_string(),
         );
     }
 
-    let url = "http://127.0.0.1:8888/login";
+    let oauth_origin = oauth_origin_from_redirect_uri(spotify_redirect_uri.as_deref());
+    let url = format!("{oauth_origin}/login");
 
     #[cfg(target_os = "macos")]
     {
         Command::new("open")
-            .arg(url)
+            .arg(url.as_str())
             .spawn()
             .map_err(|err| format!("Failed to open browser: {err}"))?;
     }
@@ -573,7 +609,7 @@ fn open_spotify_login(state: State<'_, SyncState>) -> Result<(), String> {
         Command::new("cmd")
             .arg("/C")
             .arg("start")
-            .arg(url)
+            .arg(url.as_str())
             .spawn()
             .map_err(|err| format!("Failed to open browser: {err}"))?;
     }
@@ -581,7 +617,7 @@ fn open_spotify_login(state: State<'_, SyncState>) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         Command::new("xdg-open")
-            .arg(url)
+            .arg(url.as_str())
             .spawn()
             .map_err(|err| format!("Failed to open browser: {err}"))?;
     }

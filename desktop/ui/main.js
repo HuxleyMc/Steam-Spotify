@@ -563,7 +563,10 @@ if (invoke && listen) {
 
   loginButton.addEventListener("click", async () => {
     try {
-      await invoke("open_spotify_login");
+      const settings = getSettings();
+      await invoke("open_spotify_login", {
+        spotifyRedirectUri: settings.spotifyRedirectUri || null,
+      });
       appendLog("[ui] Opened Spotify login URL.");
     } catch (error) {
       appendLog(`[ui] Failed to open login URL: ${error}`);

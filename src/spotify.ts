@@ -379,45 +379,48 @@ const initSpotify = async (
         item: CurrentTrack | null;
       };
 
-      const response = await fetch(CURRENT_TRACK_URL, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
+      const requestCurrentPlayingTrack = async (
+        retryWithRefresh = true
+      ): Promise<SpotifyCurrentTrackResponse> => {
+        const response = await fetch(CURRENT_TRACK_URL, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
 
-      if (response.status === 204) {
-        return { is_playing: false, item: null };
-      }
+        if (response.status === 204) {
+          return { is_playing: false, item: null };
+        }
 
-      if (response.status === 401) {
-        if (!refreshToken) {
-          openLoginForReauthorization(
-            "Spotify access token expired and no refresh token is available."
-          );
-        } else {
-          try {
-            await refreshAccessToken();
-            return spotifyRequest<SpotifyCurrentTrackResponse>(
-              CURRENT_TRACK_URL,
-              false
-            );
-          } catch (refreshError) {
+        if (response.status === 401 && retryWithRefresh) {
+          if (!refreshToken) {
             openLoginForReauthorization(
-              "Failed to refresh Spotify token after playback request.",
-              refreshError
+              "Spotify access token expired and no refresh token is available."
             );
+          } else {
+            try {
+              await refreshAccessToken();
+              return requestCurrentPlayingTrack(false);
+            } catch (refreshError) {
+              openLoginForReauthorization(
+                "Failed to refresh Spotify token after playback request.",
+                refreshError
+              );
+            }
           }
         }
-      }
 
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(
-          `Spotify API request failed (${response.status}): ${body}`
-        );
-      }
+        if (!response.ok) {
+          const body = await response.text();
+          throw new Error(
+            `Spotify API request failed (${response.status}): ${body}`
+          );
+        }
 
-      return (await response.json()) as SpotifyCurrentTrackResponse;
+        return (await response.json()) as SpotifyCurrentTrackResponse;
+      };
+
+      return requestCurrentPlayingTrack();
     },
     getTrack: async (id: string) => {
       const trackUrl = `https://api.spotify.com/v1/tracks/${id}`;
