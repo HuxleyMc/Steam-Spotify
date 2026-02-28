@@ -9,7 +9,8 @@ const STEAM_GUARD_REQUIRED_MARKER = "STEAM_GUARD_REQUIRED";
 const STEAM_UI_STATUS_MARKER = "STEAM_UI_STATUS";
 const STEAM_GUARD_APPROVED_TOKEN = "__STEAM_APPROVED__";
 const STEAM_LOGIN_TIMEOUT_MS = 90_000;
-const STEAM_APPROVAL_RETRY_DELAY_MS = 3_000;
+const STEAM_APPROVAL_RETRY_DELAY_MS = 15_000;
+const STEAM_RATELIMIT_RETRY_DELAY_MS = 60_000;
 let steamLogHandlersBound = false;
 let steamGuardInputBound = false;
 let steamGuardInputBuffer = "";
@@ -167,26 +168,41 @@ const requestSteamGuardCode = (
       : "Awaiting Steam sign-in approval confirmation from stdin (desktop prompt or terminal input)."
   );
 
-  if (!domain) {
-    if (lastCodeWrong) {
-      console.log(
-        `[steam] Approval not confirmed yet. Re-checking in ${Math.round(
-          STEAM_APPROVAL_RETRY_DELAY_MS / 1000
-        )}s...`
-      );
-    }
-
-    const delayMs = lastCodeWrong ? STEAM_APPROVAL_RETRY_DELAY_MS : 0;
-    return new Promise<string>((resolve) => {
-      setTimeout(() => resolve(""), delayMs);
-    });
-  }
-
   bindSteamGuardInput();
 
   if (pendingSteamGuardCodes.length > 0) {
-    console.log("[steam] Using queued Steam Guard code.");
-    return Promise.resolve(pendingSteamGuardCodes.shift() as string);
+    const queuedCode = pendingSteamGuardCodes.shift() as string;
+    if (domain || queuedCode.length > 0) {
+      console.log("[steam] Using queued Steam Guard response.");
+    } else {
+      console.log("[steam] Using queued Steam approval confirmation.");
+    }
+    return Promise.resolve(queuedCode);
+  }
+
+  if (!domain) {
+    console.log(
+      `[steam] Waiting for approval. Auto-retrying in ${Math.round(
+        STEAM_APPROVAL_RETRY_DELAY_MS / 1000
+      )}s.`
+    );
+
+    return new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        resolve("");
+      }, STEAM_APPROVAL_RETRY_DELAY_MS);
+
+      steamGuardWaiters.push({
+        resolve: (code) => {
+          clearTimeout(timeout);
+          resolve(code);
+        },
+        reject: (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        },
+      });
+    });
   }
 
   return new Promise<string>((resolve, reject) => {
@@ -201,15 +217,25 @@ export const initSteam = async (username: string, password: string) => {
   console.log("Attempting Steam login...");
 
   return new Promise<SteamUser>((resolve, reject) => {
+    let steamApprovalModeActive = false;
+    let rateLimitRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
     steamGuardCodeSubmittedHook = (code: string) => {
       if (settled) {
         return;
       }
 
-      console.log(
-        "[steam] Steam Guard code submitted manually. Retrying logon with provided code."
-      );
-      emitSteamUiStatus("connecting", "Submitting Steam Guard code...");
+      if (code) {
+        console.log(
+          "[steam] Steam Guard code submitted manually. Retrying logon with provided code."
+        );
+        emitSteamUiStatus("connecting", "Submitting Steam Guard code...");
+      } else {
+        console.log(
+          "[steam] Steam approval confirmed manually. Retrying Steam login."
+        );
+        emitSteamUiStatus("connecting", "Retrying Steam login...");
+      }
       client.logOn({
         accountName: username,
         password: password,
@@ -234,6 +260,11 @@ export const initSteam = async (username: string, password: string) => {
       }
       settled = true;
       clearTimeout(timeout);
+      if (rateLimitRetryTimer) {
+        clearTimeout(rateLimitRetryTimer);
+        rateLimitRetryTimer = null;
+      }
+      steamApprovalModeActive = false;
       console.log("Logged into Steam");
       emitSteamUiStatus("connected", "Logged into Steam.");
       client.setPersona(SteamUser.EPersonaState.Online);
@@ -245,8 +276,51 @@ export const initSteam = async (username: string, password: string) => {
       if (settled) {
         return;
       }
+
+      if (
+        steamApprovalModeActive &&
+        (error.message === "RateLimitExceeded" ||
+          (error as Error & { eresult?: number }).eresult === 84)
+      ) {
+        if (rateLimitRetryTimer) {
+          return;
+        }
+
+        console.warn(
+          `[steam] Rate limited by Steam during approval flow. Retrying login in ${Math.round(
+            STEAM_RATELIMIT_RETRY_DELAY_MS / 1000
+          )}s...`
+        );
+        emitSteamUiStatus(
+          "guard",
+          `Steam rate-limited login attempts. Retrying in ${Math.round(
+            STEAM_RATELIMIT_RETRY_DELAY_MS / 1000
+          )}s...`
+        );
+
+        rateLimitRetryTimer = setTimeout(() => {
+          rateLimitRetryTimer = null;
+          if (settled) {
+            return;
+          }
+
+          console.log("[steam] Retrying Steam login after rate-limit backoff.");
+          emitSteamUiStatus("connecting", "Retrying Steam login...");
+          client.logOn({
+            accountName: username,
+            password: password,
+          });
+        }, STEAM_RATELIMIT_RETRY_DELAY_MS);
+
+        return;
+      }
+
       settled = true;
       clearTimeout(timeout);
+      if (rateLimitRetryTimer) {
+        clearTimeout(rateLimitRetryTimer);
+        rateLimitRetryTimer = null;
+      }
       console.error("Failed to login to steam: ", error);
       emitSteamUiStatus(
         "error",
@@ -264,6 +338,7 @@ export const initSteam = async (username: string, password: string) => {
       callback: (code: string) => void,
       lastCodeWrong = false
     ) => {
+      steamApprovalModeActive = domain === null;
       console.log(
         `[steam] Steam Guard challenge received (domain=${
           domain || "unknown"
@@ -271,8 +346,16 @@ export const initSteam = async (username: string, password: string) => {
       );
       requestSteamGuardCode(domain, lastCodeWrong)
         .then((code) => {
-          console.log("Submitting Steam Guard code...");
-          emitSteamUiStatus("connecting", "Submitting Steam Guard code...");
+          if (code) {
+            console.log("Submitting Steam Guard code...");
+            emitSteamUiStatus("connecting", "Submitting Steam Guard code...");
+          } else {
+            console.log("Submitting Steam Guard approval check...");
+            emitSteamUiStatus(
+              "connecting",
+              "Checking Steam sign-in approval..."
+            );
+          }
           callback(code);
         })
         .catch((error) => {
@@ -281,6 +364,10 @@ export const initSteam = async (username: string, password: string) => {
           }
           settled = true;
           clearTimeout(timeout);
+          if (rateLimitRetryTimer) {
+            clearTimeout(rateLimitRetryTimer);
+            rateLimitRetryTimer = null;
+          }
           console.error("Failed to obtain Steam Guard code:", error);
           emitSteamUiStatus(
             "error",
@@ -299,6 +386,10 @@ export const initSteam = async (username: string, password: string) => {
       }
       settled = true;
       clearTimeout(timeout);
+      if (rateLimitRetryTimer) {
+        clearTimeout(rateLimitRetryTimer);
+        rateLimitRetryTimer = null;
+      }
       const reason = msg ? ` (${msg})` : "";
       emitSteamUiStatus(
         "disconnected",
@@ -316,6 +407,10 @@ export const initSteam = async (username: string, password: string) => {
       client.removeListener("error", onError);
       client.removeListener("steamGuard", onSteamGuard);
       client.removeListener("disconnected", onDisconnected);
+      if (rateLimitRetryTimer) {
+        clearTimeout(rateLimitRetryTimer);
+        rateLimitRetryTimer = null;
+      }
       steamGuardCodeSubmittedHook = null;
     };
 
