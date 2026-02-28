@@ -67,6 +67,75 @@ fn is_project_root(path: &Path) -> bool {
     path.join("package.json").exists() && path.join("src").join("index.ts").exists()
 }
 
+fn oauth_port_from_redirect_uri(redirect_uri: Option<&str>) -> u16 {
+    let Some(uri) = redirect_uri.map(str::trim).filter(|value| !value.is_empty()) else {
+        return 8888;
+    };
+
+    let Some(without_scheme) = uri.strip_prefix("http://") else {
+        return 8888;
+    };
+
+    let host_and_port = without_scheme.split('/').next().unwrap_or_default();
+    if let Some((_, port)) = host_and_port.rsplit_once(':') {
+        return port.parse::<u16>().unwrap_or(8888);
+    }
+
+    80
+}
+
+#[cfg(unix)]
+fn terminate_stale_listener_on_port(app_handle: &AppHandle, port: u16) {
+    let port_spec = format!("-iTCP:{port}");
+    let output = match Command::new("lsof")
+        .arg("-nP")
+        .arg("-t")
+        .arg(port_spec)
+        .arg("-sTCP:LISTEN")
+        .output()
+    {
+        Ok(output) => output,
+        Err(err) => {
+            emit_line(
+                app_handle,
+                "ui",
+                format!("Could not inspect OAuth port {port}: {err}"),
+            );
+            return;
+        }
+    };
+
+    let pids: Vec<String> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToOwned::to_owned)
+        .collect();
+
+    if pids.is_empty() {
+        return;
+    }
+
+    emit_line(
+        app_handle,
+        "ui",
+        format!(
+            "Detected existing listener(s) on OAuth port {port}: {}. Attempting cleanup.",
+            pids.join(", ")
+        ),
+    );
+
+    for pid in &pids {
+        let _ = Command::new("kill").arg("-TERM").arg(pid).status();
+    }
+
+    std::thread::sleep(Duration::from_millis(300));
+
+    for pid in &pids {
+        let _ = Command::new("kill").arg("-KILL").arg(pid).status();
+    }
+}
+
 fn find_root_from_candidate(candidate: PathBuf) -> Option<PathBuf> {
     for ancestor in candidate.ancestors() {
         if is_project_root(ancestor) {
@@ -308,6 +377,12 @@ fn start_sync(
         steam_guard_code,
         not_playing,
     } = settings;
+
+    #[cfg(unix)]
+    {
+        let oauth_port = oauth_port_from_redirect_uri(spotify_redirect_uri.as_deref());
+        terminate_stale_listener_on_port(&app_handle, oauth_port);
+    }
 
     let mut command = Command::new("bun");
     command
