@@ -35,10 +35,14 @@ cp example.env .env
 - `STEAMUSERNAME` (Steam username)
 - `STEAMPASSWORD` (Steam password)
 - `NOTPLAYING` (optional fallback text)
+- `SPOTIFY_REDIRECT_URI` (optional; default `http://127.0.0.1:8888/callback`)
 
 4. In Spotify Developer Dashboard, configure your app redirect URI exactly as:
 
 `http://127.0.0.1:8888/callback`
+
+If your app is configured with a different callback (for example
+`http://localhost:8888/callback`), set `SPOTIFY_REDIRECT_URI` to that exact URI.
 
 5. Start the app:
 
@@ -88,7 +92,7 @@ instructions and you can run `bun run start` again.
 | Symptom                                     | Likely cause                                      | Fix                                                                                    |
 | ------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Missing required environment variables      | `.env` missing or incomplete                      | `cp example.env .env`, fill required keys, rerun                                       |
-| Callback/auth error from Spotify            | Redirect URI mismatch or wrong client credentials | Set redirect URI to `http://127.0.0.1:8888/callback`; verify `CLIENTID`/`CLIENTSECRET` |
+| Callback/auth error from Spotify            | Redirect URI mismatch or wrong client credentials | Ensure Spotify dashboard URI exactly matches runtime URI (`SPOTIFY_REDIRECT_URI` or default `http://127.0.0.1:8888/callback`); verify `CLIENTID`/`CLIENTSECRET` |
 | Timed out waiting for Spotify authorization | Login flow not completed in browser               | Open `http://127.0.0.1:8888/login` and approve access                                  |
 | Failed to login to steam                    | Wrong Steam credentials                           | Verify `STEAMUSERNAME` and `STEAMPASSWORD`                                             |
 | Failed to fetch current Spotify playback    | Temporary network/API issue                       | Keep app running; it retries automatically                                             |
@@ -104,7 +108,7 @@ If startup says required env vars are missing:
 ### Spotify authorization times out
 
 - Open `http://127.0.0.1:8888/login`
-- Confirm your Spotify app redirect URI is exactly `http://127.0.0.1:8888/callback`
+- Confirm your Spotify app redirect URI exactly matches `SPOTIFY_REDIRECT_URI` (or default `http://127.0.0.1:8888/callback`)
 - Check `CLIENTID` and `CLIENTSECRET` in `.env`
 
 ### Steam login fails

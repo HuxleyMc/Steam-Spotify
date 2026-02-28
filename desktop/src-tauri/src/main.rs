@@ -17,6 +17,7 @@ struct SyncState {
 struct SyncSettings {
     client_id: String,
     client_secret: String,
+    spotify_redirect_uri: Option<String>,
     steam_username: String,
     steam_password: String,
     not_playing: String,
@@ -297,19 +298,36 @@ fn start_sync(
         format!("Using project root: {}", root.display()),
     );
 
-    let mut child = match Command::new("bun")
+    let SyncSettings {
+        client_id,
+        client_secret,
+        spotify_redirect_uri,
+        steam_username,
+        steam_password,
+        not_playing,
+    } = settings;
+
+    let mut command = Command::new("bun");
+    command
         .arg("run")
         .arg("start")
         .current_dir(root)
-        .env("CLIENTID", settings.client_id)
-        .env("CLIENTSECRET", settings.client_secret)
-        .env("STEAMUSERNAME", settings.steam_username)
-        .env("STEAMPASSWORD", settings.steam_password)
-        .env("NOTPLAYING", settings.not_playing)
+        .env("CLIENTID", client_id)
+        .env("CLIENTSECRET", client_secret)
+        .env("STEAMUSERNAME", steam_username)
+        .env("STEAMPASSWORD", steam_password)
+        .env("NOTPLAYING", not_playing)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-    {
+        .stderr(Stdio::piped());
+
+    if let Some(redirect_uri) = spotify_redirect_uri {
+        let trimmed = redirect_uri.trim();
+        if !trimmed.is_empty() {
+            command.env("SPOTIFY_REDIRECT_URI", trimmed);
+        }
+    }
+
+    let mut child = match command.spawn() {
         Ok(child) => child,
         Err(err) => {
             let message = format!("Failed to start sync process. Ensure Bun is installed. {err}");

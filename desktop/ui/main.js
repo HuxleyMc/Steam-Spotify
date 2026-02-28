@@ -4,6 +4,7 @@ const listen = tauri?.event?.listen;
 
 const clientId = document.querySelector("#clientId");
 const clientSecret = document.querySelector("#clientSecret");
+const redirectUri = document.querySelector("#redirectUri");
 const steamUsername = document.querySelector("#steamUsername");
 const steamPassword = document.querySelector("#steamPassword");
 const notPlaying = document.querySelector("#notPlaying");
@@ -129,6 +130,7 @@ const getSettings = () => {
   return {
     clientId: clientId.value.trim(),
     clientSecret: clientSecret.value.trim(),
+    spotifyRedirectUri: redirectUri.value.trim(),
     steamUsername: steamUsername.value.trim(),
     steamPassword: steamPassword.value,
     notPlaying: notPlaying.value.trim() || "Monkey",
@@ -138,6 +140,7 @@ const getSettings = () => {
 const applySettings = (settings) => {
   clientId.value = settings.clientId ?? "";
   clientSecret.value = settings.clientSecret ?? "";
+  redirectUri.value = settings.spotifyRedirectUri ?? "http://127.0.0.1:8888/callback";
   steamUsername.value = settings.steamUsername ?? "";
   steamPassword.value = settings.steamPassword ?? "";
   notPlaying.value = settings.notPlaying ?? "Monkey";
@@ -284,6 +287,7 @@ if (invoke && listen) {
   for (const field of [
     clientId,
     clientSecret,
+    redirectUri,
     steamUsername,
     steamPassword,
     notPlaying,

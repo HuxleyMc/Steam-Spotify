@@ -3,7 +3,7 @@
 ## Runtime Behavior
 
 - App boots through `src/index.ts` orchestration.
-- Spotify OAuth callback uses `http://127.0.0.1:8888/callback`.
+- Spotify OAuth callback defaults to `http://127.0.0.1:8888/callback` and can be overridden with `SPOTIFY_REDIRECT_URI`.
 - Steam status updates run in a recurring polling loop.
 
 ## Error Handling
