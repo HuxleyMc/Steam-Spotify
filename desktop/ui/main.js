@@ -671,14 +671,16 @@ if (invoke && listen) {
         domainMatch?.[1] && domainMatch[1] !== "unknown"
           ? domainMatch[1]
           : null;
-      const requiresCode = mode !== "approval" || retry;
-      const detail = retry
-        ? "Previous code was invalid. Enter a new Steam Guard code."
-        : requiresCode
-        ? domain
+      const requiresCode = mode === "code";
+      const detail = requiresCode
+        ? retry
+          ? "Previous code was invalid. Enter a new Steam Guard code."
+          : domain
           ? `Enter the Steam Guard code sent to ${domain}.`
           : "Enter your Steam Guard code to continue login."
-        : "Approve the sign-in request in Steam, then click Continue.";
+        : retry
+        ? "Still waiting for Steam sign-in approval. Approve in Steam, or click Continue to retry now."
+        : "Waiting for Steam sign-in approval in the Steam app.";
 
       showSteamGuardPrompt(detail, {
         requiresCode,
@@ -686,7 +688,9 @@ if (invoke && listen) {
       });
       setStatus(
         "starting",
-        requiresCode ? "Steam Guard code required." : "Steam approval required."
+        requiresCode
+          ? "Steam Guard code required."
+          : "Waiting for Steam sign-in approval..."
       );
       setSteamStatus("guard", detail);
     } else if (line.includes("Logged into Steam")) {

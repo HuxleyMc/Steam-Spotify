@@ -9,6 +9,7 @@ const STEAM_GUARD_REQUIRED_MARKER = "STEAM_GUARD_REQUIRED";
 const STEAM_UI_STATUS_MARKER = "STEAM_UI_STATUS";
 const STEAM_GUARD_APPROVED_TOKEN = "__STEAM_APPROVED__";
 const STEAM_LOGIN_TIMEOUT_MS = 90_000;
+const STEAM_APPROVAL_RETRY_DELAY_MS = 3_000;
 let steamLogHandlersBound = false;
 let steamGuardInputBound = false;
 let steamGuardInputBuffer = "";
@@ -165,6 +166,21 @@ const requestSteamGuardCode = (
       ? "Awaiting Steam Guard code from stdin (desktop prompt or terminal input)."
       : "Awaiting Steam sign-in approval confirmation from stdin (desktop prompt or terminal input)."
   );
+
+  if (!domain) {
+    if (lastCodeWrong) {
+      console.log(
+        `[steam] Approval not confirmed yet. Re-checking in ${Math.round(
+          STEAM_APPROVAL_RETRY_DELAY_MS / 1000
+        )}s...`
+      );
+    }
+
+    const delayMs = lastCodeWrong ? STEAM_APPROVAL_RETRY_DELAY_MS : 0;
+    return new Promise<string>((resolve) => {
+      setTimeout(() => resolve(""), delayMs);
+    });
+  }
 
   bindSteamGuardInput();
 
