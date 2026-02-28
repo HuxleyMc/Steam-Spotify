@@ -34,6 +34,25 @@ Workflow: `.github/workflows/ci.yml`
 
 When changing code, keep local verification aligned with CI.
 
+## Beta Release (Manual)
+
+Workflow: `.github/workflows/beta-release.yml`
+
+Trigger: `workflow_dispatch`
+
+Inputs:
+
+- `ref` (optional): branch/tag/SHA to build (defaults to `main`)
+- `tag` (optional): prerelease tag override
+- `release_name` (optional): prerelease title override
+- `notes` (optional): extra notes for the release body
+
+Behavior:
+
+1. Builds Tauri desktop bundles on Linux, macOS, and Windows.
+2. Uploads build bundles as workflow artifacts.
+3. Creates a GitHub prerelease (`beta-*`) and attaches the archived bundles.
+
 ## Linting
 
 - No linter is configured.
