@@ -5,24 +5,61 @@ import { SpotifyClient } from "./spotify";
 const client = new SteamUser({});
 
 export const initSteam = async (username: string, password: string) => {
-  client.logOn({
-    accountName: username,
-    password: password,
-  });
+  console.log("Attempting Steam login...");
 
   return new Promise<SteamUser>((resolve, reject) => {
-    client.on("loggedOn", () => {
+    const onLoggedOn = () => {
       console.log("Logged into Steam");
       client.setPersona(SteamUser.EPersonaState.Online);
+      cleanup();
       resolve(client);
-    });
+    };
 
-    client.on("error", (error) => {
+    const onError = (error: Error) => {
       console.error("Failed to login to steam: ", error);
       console.error(
         "Verify STEAMUSERNAME and STEAMPASSWORD in .env, then try again."
       );
-      process.exit(1);
+      cleanup();
+      reject(error);
+    };
+
+    const onSteamGuard = (
+      domain: string | null,
+      callback: (code: string) => void
+    ) => {
+      const configuredCode = process.env.STEAMGUARD?.trim();
+
+      if (configuredCode) {
+        console.log("Steam Guard challenge received. Using STEAMGUARD code.");
+        callback(configuredCode);
+        return;
+      }
+
+      console.error("Steam Guard challenge received.");
+      if (domain) {
+        console.error(`Enter the code sent by Steam to: ${domain}`);
+      }
+      console.error(
+        "Set STEAMGUARD in your environment (or desktop settings) and restart sync."
+      );
+      cleanup();
+      reject(new Error("Steam Guard code required."));
+    };
+
+    const cleanup = () => {
+      client.removeListener("loggedOn", onLoggedOn);
+      client.removeListener("error", onError);
+      client.removeListener("steamGuard", onSteamGuard);
+    };
+
+    client.on("loggedOn", onLoggedOn);
+    client.on("error", onError);
+    client.on("steamGuard", onSteamGuard);
+
+    client.logOn({
+      accountName: username,
+      password: password,
     });
   });
 };

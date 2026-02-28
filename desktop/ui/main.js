@@ -7,6 +7,7 @@ const clientSecret = document.querySelector("#clientSecret");
 const redirectUri = document.querySelector("#redirectUri");
 const steamUsername = document.querySelector("#steamUsername");
 const steamPassword = document.querySelector("#steamPassword");
+const steamGuardCode = document.querySelector("#steamGuardCode");
 const notPlaying = document.querySelector("#notPlaying");
 const startButton = document.querySelector("#startButton");
 const restartButton = document.querySelector("#restartButton");
@@ -133,6 +134,7 @@ const getSettings = () => {
     spotifyRedirectUri: redirectUri.value.trim(),
     steamUsername: steamUsername.value.trim(),
     steamPassword: steamPassword.value,
+    steamGuardCode: steamGuardCode.value.trim(),
     notPlaying: notPlaying.value.trim() || "Monkey",
   };
 };
@@ -143,6 +145,7 @@ const applySettings = (settings) => {
   redirectUri.value = settings.spotifyRedirectUri ?? "http://127.0.0.1:8888/callback";
   steamUsername.value = settings.steamUsername ?? "";
   steamPassword.value = settings.steamPassword ?? "";
+  steamGuardCode.value = settings.steamGuardCode ?? "";
   notPlaying.value = settings.notPlaying ?? "Monkey";
 };
 
@@ -290,6 +293,7 @@ if (invoke && listen) {
     redirectUri,
     steamUsername,
     steamPassword,
+    steamGuardCode,
     notPlaying,
   ]) {
     field.addEventListener("change", () => {

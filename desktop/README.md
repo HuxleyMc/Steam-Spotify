@@ -5,6 +5,7 @@ This is a lightweight desktop wrapper around the existing sync service.
 ## What it does
 
 - Collects Spotify and Steam credentials in a desktop UI.
+- Supports optional Steam Guard code for challenged Steam logins.
 - Saves credentials locally and restores them when reopening the app.
 - Supports optional Spotify redirect URI override for callback mismatch fixes.
 - Starts/stops/restarts the existing `bun run start` sync process.

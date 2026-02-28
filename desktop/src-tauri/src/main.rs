@@ -20,6 +20,7 @@ struct SyncSettings {
     spotify_redirect_uri: Option<String>,
     steam_username: String,
     steam_password: String,
+    steam_guard_code: Option<String>,
     not_playing: String,
 }
 
@@ -304,6 +305,7 @@ fn start_sync(
         spotify_redirect_uri,
         steam_username,
         steam_password,
+        steam_guard_code,
         not_playing,
     } = settings;
 
@@ -324,6 +326,13 @@ fn start_sync(
         let trimmed = redirect_uri.trim();
         if !trimmed.is_empty() {
             command.env("SPOTIFY_REDIRECT_URI", trimmed);
+        }
+    }
+
+    if let Some(guard_code) = steam_guard_code {
+        let trimmed = guard_code.trim();
+        if !trimmed.is_empty() {
+            command.env("STEAMGUARD", trimmed);
         }
     }
 

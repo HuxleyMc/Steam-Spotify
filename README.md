@@ -34,6 +34,7 @@ cp example.env .env
 - `CLIENTSECRET` (Spotify app client secret)
 - `STEAMUSERNAME` (Steam username)
 - `STEAMPASSWORD` (Steam password)
+- `STEAMGUARD` (optional one-time Steam Guard code, if challenged)
 - `NOTPLAYING` (optional fallback text)
 - `SPOTIFY_REDIRECT_URI` (optional; default `http://127.0.0.1:8888/callback`)
 
@@ -115,6 +116,7 @@ If startup says required env vars are missing:
 
 - Re-check `STEAMUSERNAME` and `STEAMPASSWORD`
 - Confirm account credentials are valid
+- If prompted for Steam Guard, set `STEAMGUARD` with the current code and restart
 
 ### Need more help?
 
