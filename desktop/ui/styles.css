@@ -108,8 +108,47 @@ button:disabled {
 }
 
 .status {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.status-panel {
   margin-top: 12px;
-  color: #223147;
+  display: grid;
+  gap: 6px;
+}
+
+.status-idle {
+  background: #eaf0f7;
+  color: #2b3d55;
+}
+
+.status-running {
+  background: #d8f5e4;
+  color: #11592f;
+}
+
+.status-starting,
+.status-stopping {
+  background: #fef1d6;
+  color: #855300;
+}
+
+.status-disconnected,
+.status-error {
+  background: #fde5e5;
+  color: #8b2525;
+}
+
+.status-detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
 }
 
 #logs {

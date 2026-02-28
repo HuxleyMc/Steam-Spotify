@@ -54,10 +54,18 @@
         <h2>Controls</h2>
         <div class="actions">
           <button id="startButton" class="primary">Start Sync</button>
+          <button id="restartButton" class="secondary" disabled>
+            Restart Sync
+          </button>
           <button id="stopButton" class="danger" disabled>Stop Sync</button>
-          <button id="loginButton" class="secondary">Open Spotify Login</button>
+          <button id="loginButton" class="secondary" disabled>
+            Open Spotify Login
+          </button>
         </div>
-        <p id="status" class="status">Status: idle</p>
+        <div class="status-panel">
+          <p id="status" class="status status-idle">Status: idle</p>
+          <p id="statusDetail" class="status-detail">Sync is not running.</p>
+        </div>
       </section>
 
       <section class="card logs-card">

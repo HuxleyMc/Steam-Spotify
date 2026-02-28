@@ -6,7 +6,8 @@ This is a lightweight desktop wrapper around the existing sync service.
 
 - Collects Spotify and Steam credentials in a desktop UI.
 - Saves credentials locally and restores them when reopening the app.
-- Starts/stops the existing `bun run start` sync process.
+- Starts/stops/restarts the existing `bun run start` sync process.
+- Tracks sync lifecycle in real time (starting/running/stopping/exited/error).
 - Streams sync logs into the UI.
 - Opens Spotify login URL (`http://127.0.0.1:8888/login`) with one click.
 
