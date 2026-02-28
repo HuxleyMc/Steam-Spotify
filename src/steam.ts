@@ -5,6 +5,13 @@ import { SpotifyClient } from "./spotify";
 const client = new SteamUser({});
 const STEAM_GUARD_REQUIRED_MARKER = "STEAM_GUARD_REQUIRED";
 let steamLogHandlersBound = false;
+let steamGuardInputBound = false;
+let steamGuardInputBuffer = "";
+const pendingSteamGuardCodes: string[] = [];
+const steamGuardWaiters: Array<{
+  resolve: (code: string) => void;
+  reject: (error: Error) => void;
+}> = [];
 
 const bindSteamRuntimeLogs = () => {
   if (steamLogHandlersBound) {
@@ -35,6 +42,55 @@ const bindSteamRuntimeLogs = () => {
   }
 };
 
+const deliverSteamGuardCode = (code: string) => {
+  const waiter = steamGuardWaiters.shift();
+  if (waiter) {
+    waiter.resolve(code);
+    return;
+  }
+
+  pendingSteamGuardCodes.push(code);
+};
+
+const bindSteamGuardInput = () => {
+  if (steamGuardInputBound) {
+    return;
+  }
+
+  steamGuardInputBound = true;
+  process.stdin.setEncoding("utf8");
+  process.stdin.resume();
+
+  process.stdin.on("data", (chunk: string | Buffer) => {
+    steamGuardInputBuffer += chunk.toString();
+    const lines = steamGuardInputBuffer.split(/\r?\n/);
+    steamGuardInputBuffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      const code = line.trim();
+      if (!code) {
+        continue;
+      }
+
+      console.log(`[steam] Received Steam Guard input (${code.length} chars).`);
+      deliverSteamGuardCode(code);
+    }
+  });
+
+  process.stdin.on("end", () => {
+    const error = new Error("stdin ended before receiving Steam Guard code.");
+    while (steamGuardWaiters.length > 0) {
+      steamGuardWaiters.shift()?.reject(error);
+    }
+  });
+
+  process.stdin.on("error", (error: Error) => {
+    while (steamGuardWaiters.length > 0) {
+      steamGuardWaiters.shift()?.reject(error);
+    }
+  });
+};
+
 const requestSteamGuardCode = (
   domain: string | null,
   lastCodeWrong: boolean
@@ -61,48 +117,14 @@ const requestSteamGuardCode = (
     "Awaiting Steam Guard code from stdin (desktop prompt or terminal input)."
   );
 
+  bindSteamGuardInput();
+
+  if (pendingSteamGuardCodes.length > 0) {
+    return Promise.resolve(pendingSteamGuardCodes.shift() as string);
+  }
+
   return new Promise<string>((resolve, reject) => {
-    process.stdin.setEncoding("utf8");
-    process.stdin.resume();
-
-    let buffered = "";
-
-    const cleanup = () => {
-      process.stdin.removeListener("data", onData);
-      process.stdin.removeListener("end", onEnd);
-      process.stdin.removeListener("error", onError);
-    };
-
-    const onData = (chunk: string | Buffer) => {
-      buffered += chunk.toString();
-      const lines = buffered.split(/\r?\n/);
-      buffered = lines.pop() ?? "";
-
-      for (const line of lines) {
-        const code = line.trim();
-        if (!code) {
-          continue;
-        }
-
-        cleanup();
-        resolve(code);
-        return;
-      }
-    };
-
-    const onEnd = () => {
-      cleanup();
-      reject(new Error("stdin ended before receiving Steam Guard code."));
-    };
-
-    const onError = (error: Error) => {
-      cleanup();
-      reject(error);
-    };
-
-    process.stdin.on("data", onData);
-    process.stdin.on("end", onEnd);
-    process.stdin.on("error", onError);
+    steamGuardWaiters.push({ resolve, reject });
   });
 };
 
