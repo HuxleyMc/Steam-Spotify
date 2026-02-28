@@ -2,7 +2,9 @@ import SteamUser from "steam-user";
 
 import { SpotifyClient } from "./spotify";
 
-const client = new SteamUser({});
+const client = new SteamUser({
+  protocol: SteamUser.EConnectionProtocol.TCP,
+});
 const STEAM_GUARD_REQUIRED_MARKER = "STEAM_GUARD_REQUIRED";
 const STEAM_LOGIN_TIMEOUT_MS = 90_000;
 let steamLogHandlersBound = false;
@@ -138,6 +140,7 @@ const requestSteamGuardCode = (
 
 export const initSteam = async (username: string, password: string) => {
   bindSteamRuntimeLogs();
+  console.log("[steam] Connection protocol: TCP");
   console.log("Attempting Steam login...");
 
   return new Promise<SteamUser>((resolve, reject) => {
