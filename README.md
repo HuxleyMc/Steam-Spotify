@@ -2,6 +2,12 @@
 
 Sync Spotify "currently playing" to your Steam status.
 
+## Project Status
+
+This repository is a rewrite of the project focused on an easy-to-use desktop app.
+
+The legacy CLI-first version is still available on the `v2-backup` branch, but it is no longer actively maintained.
+
 When music is playing:
 
 `Listening to <song> • <artist>`
