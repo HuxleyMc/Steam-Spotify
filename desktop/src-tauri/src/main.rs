@@ -310,7 +310,7 @@ fn start_sync(
     let mut command = Command::new("bun");
     command
         .arg("run")
-        .arg("start")
+        .arg("src/index.ts")
         .current_dir(root)
         .env("CLIENTID", client_id)
         .env("CLIENTSECRET", client_secret)
@@ -364,6 +364,18 @@ fn stop_sync(app_handle: AppHandle, state: State<'_, SyncState>) -> Result<(), S
         .map_err(|_| "Failed to lock process state".to_string())?;
 
     if let Some(child) = guard.as_mut() {
+        let pid = child.id();
+
+        #[cfg(unix)]
+        {
+            // Ensure subprocesses spawned by Bun are also terminated.
+            let _ = Command::new("pkill")
+                .arg("-TERM")
+                .arg("-P")
+                .arg(pid.to_string())
+                .status();
+        }
+
         emit_lifecycle(
             &app_handle,
             "stopping",
@@ -374,6 +386,17 @@ fn stop_sync(app_handle: AppHandle, state: State<'_, SyncState>) -> Result<(), S
             .kill()
             .map_err(|err| format!("Failed to stop sync process: {err}"))?;
         let _ = child.wait();
+
+        #[cfg(unix)]
+        {
+            // Final cleanup in case descendants outlive the parent briefly.
+            let _ = Command::new("pkill")
+                .arg("-KILL")
+                .arg("-P")
+                .arg(pid.to_string())
+                .status();
+        }
+
         *guard = None;
         emit_line(&app_handle, "ui", "Sync process stopped".to_string());
         emit_lifecycle(
