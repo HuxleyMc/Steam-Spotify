@@ -4,6 +4,7 @@ import { SpotifyClient } from "./spotify";
 
 const client = new SteamUser({});
 const STEAM_GUARD_REQUIRED_MARKER = "STEAM_GUARD_REQUIRED";
+const STEAM_LOGIN_TIMEOUT_MS = 90_000;
 let steamLogHandlersBound = false;
 let steamGuardInputBound = false;
 let steamGuardInputBuffer = "";
@@ -120,6 +121,7 @@ const requestSteamGuardCode = (
   bindSteamGuardInput();
 
   if (pendingSteamGuardCodes.length > 0) {
+    console.log("[steam] Using queued Steam Guard code.");
     return Promise.resolve(pendingSteamGuardCodes.shift() as string);
   }
 
@@ -133,7 +135,22 @@ export const initSteam = async (username: string, password: string) => {
   console.log("Attempting Steam login...");
 
   return new Promise<SteamUser>((resolve, reject) => {
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      cleanup();
+      reject(new Error("Timed out waiting for Steam login."));
+    }, STEAM_LOGIN_TIMEOUT_MS);
+
     const onLoggedOn = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
       console.log("Logged into Steam");
       client.setPersona(SteamUser.EPersonaState.Online);
       cleanup();
@@ -141,6 +158,11 @@ export const initSteam = async (username: string, password: string) => {
     };
 
     const onError = (error: Error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
       console.error("Failed to login to steam: ", error);
       console.error(
         "Verify STEAMUSERNAME and STEAMPASSWORD in .env, then try again."
@@ -154,27 +176,53 @@ export const initSteam = async (username: string, password: string) => {
       callback: (code: string) => void,
       lastCodeWrong = false
     ) => {
+      console.log(
+        `[steam] Steam Guard challenge received (domain=${
+          domain || "unknown"
+        }, retry=${lastCodeWrong}).`
+      );
       requestSteamGuardCode(domain, lastCodeWrong)
         .then((code) => {
           console.log("Submitting Steam Guard code...");
           callback(code);
         })
         .catch((error) => {
+          if (settled) {
+            return;
+          }
+          settled = true;
+          clearTimeout(timeout);
           console.error("Failed to obtain Steam Guard code:", error);
           cleanup();
           reject(error);
         });
     };
 
+    const onDisconnected = (eresult: number, msg?: string) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      const reason = msg ? ` (${msg})` : "";
+      reject(
+        new Error(
+          `Steam disconnected during login (eresult=${eresult})${reason}`
+        )
+      );
+    };
+
     const cleanup = () => {
       client.removeListener("loggedOn", onLoggedOn);
       client.removeListener("error", onError);
       client.removeListener("steamGuard", onSteamGuard);
+      client.removeListener("disconnected", onDisconnected);
     };
 
     client.on("loggedOn", onLoggedOn);
     client.on("error", onError);
     client.on("steamGuard", onSteamGuard);
+    client.on("disconnected", onDisconnected);
 
     client.logOn({
       accountName: username,
