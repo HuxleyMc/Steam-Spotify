@@ -8,6 +8,7 @@ const STEAM_LOGIN_TIMEOUT_MS = 90_000;
 let steamLogHandlersBound = false;
 let steamGuardInputBound = false;
 let steamGuardInputBuffer = "";
+let steamGuardCodeSubmittedHook: ((code: string) => void) | null = null;
 const pendingSteamGuardCodes: string[] = [];
 const steamGuardWaiters: Array<{
   resolve: (code: string) => void;
@@ -47,6 +48,11 @@ const deliverSteamGuardCode = (code: string) => {
   const waiter = steamGuardWaiters.shift();
   if (waiter) {
     waiter.resolve(code);
+    return;
+  }
+
+  if (steamGuardCodeSubmittedHook) {
+    steamGuardCodeSubmittedHook(code);
     return;
   }
 
@@ -135,6 +141,22 @@ export const initSteam = async (username: string, password: string) => {
   console.log("Attempting Steam login...");
 
   return new Promise<SteamUser>((resolve, reject) => {
+    steamGuardCodeSubmittedHook = (code: string) => {
+      if (settled) {
+        return;
+      }
+
+      console.log(
+        "[steam] Steam Guard code submitted manually. Retrying logon with provided code."
+      );
+      client.logOn({
+        accountName: username,
+        password: password,
+        twoFactorCode: code,
+        authCode: code,
+      });
+    };
+
     let settled = false;
     const timeout = setTimeout(() => {
       if (settled) {
@@ -217,6 +239,7 @@ export const initSteam = async (username: string, password: string) => {
       client.removeListener("error", onError);
       client.removeListener("steamGuard", onSteamGuard);
       client.removeListener("disconnected", onDisconnected);
+      steamGuardCodeSubmittedHook = null;
     };
 
     client.on("loggedOn", onLoggedOn);
