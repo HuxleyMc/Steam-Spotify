@@ -1,7 +1,11 @@
 node_modules
+desktop/node_modules
 
 .env
+.steam-spotify-tokens.json
 dist/
 
-# Good bye V1 :crying: https://youtu.be/dQw4w9WgXcQ
-V1/
+
+# Desktop tauri
+desktop/src-tauri/target
+desktop/src-tauri/gen

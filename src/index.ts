@@ -1,25 +1,22 @@
-// Initialize dotenv as early as possible
-require("dotenv").config();
-
-import express from "express";
-
 import { initConfig } from "./config";
 import { initSteam, updatePlayingSong } from "./steam";
 import { initSpotify } from "./spotify";
-
-const server = express();
 
 const main = async () => {
   const { SteamUsername, SteamPassword, ClientId, ClientSecret, NotPlaying } =
     initConfig();
 
-  const spotify = await initSpotify(ClientId, ClientSecret, server);
+  console.log("Initializing Spotify client...");
+  const spotify = await initSpotify(ClientId, ClientSecret);
 
+  console.log("Initializing Steam session...");
   await initSteam(SteamUsername, SteamPassword);
 
+  console.log("Starting playback sync loop...");
   await updatePlayingSong(spotify, NotPlaying);
 };
 
-server.listen(8888, () => {});
-
-main();
+main().catch((error) => {
+  console.error("Fatal error:", error);
+  process.exit(1);
+});
