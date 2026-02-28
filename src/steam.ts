@@ -7,6 +7,7 @@ const client = new SteamUser({
 });
 const STEAM_GUARD_REQUIRED_MARKER = "STEAM_GUARD_REQUIRED";
 const STEAM_UI_STATUS_MARKER = "STEAM_UI_STATUS";
+const STEAM_GUARD_APPROVED_TOKEN = "__STEAM_APPROVED__";
 const STEAM_LOGIN_TIMEOUT_MS = 90_000;
 let steamLogHandlersBound = false;
 let steamGuardInputBound = false;
@@ -101,6 +102,12 @@ const bindSteamGuardInput = () => {
         continue;
       }
 
+      if (code === STEAM_GUARD_APPROVED_TOKEN) {
+        console.log("[steam] Received Steam Guard approval confirmation.");
+        deliverSteamGuardCode("");
+        continue;
+      }
+
       console.log(`[steam] Received Steam Guard input (${code.length} chars).`);
       deliverSteamGuardCode(code);
     }
@@ -132,24 +139,31 @@ const requestSteamGuardCode = (
 
   const domainLabel = domain || "unknown";
   const retryLabel = lastCodeWrong ? "true" : "false";
+  const mode = domain ? "code" : "approval";
   console.log(
-    `${STEAM_GUARD_REQUIRED_MARKER} domain=${domainLabel} retry=${retryLabel}`
+    `${STEAM_GUARD_REQUIRED_MARKER} domain=${domainLabel} retry=${retryLabel} mode=${mode}`
   );
   emitSteamUiStatus(
     "guard",
     domain
       ? `Steam Guard required for ${domain}.`
-      : "Steam Guard code required."
+      : "Steam sign-in approval required."
   );
   console.error("Steam Guard challenge received.");
   if (domain) {
     console.error(`Enter the code sent by Steam to: ${domain}`);
+  } else {
+    console.error(
+      "Approve the Steam sign-in request in the Steam app, then continue from the UI prompt."
+    );
   }
   if (lastCodeWrong) {
     console.error("The previous Steam Guard code was incorrect.");
   }
   console.error(
-    "Awaiting Steam Guard code from stdin (desktop prompt or terminal input)."
+    domain
+      ? "Awaiting Steam Guard code from stdin (desktop prompt or terminal input)."
+      : "Awaiting Steam sign-in approval confirmation from stdin (desktop prompt or terminal input)."
   );
 
   bindSteamGuardInput();

@@ -36,11 +36,13 @@ const credentialsToggleButton = document.querySelector(
 
 const steamGuardMarker = "STEAM_GUARD_REQUIRED";
 const steamUiStatusMarker = "STEAM_UI_STATUS";
+const steamGuardApprovedToken = "__STEAM_APPROVED__";
 const credentialsCollapsedStorageKey = "steamSpotify.credentialsCollapsed";
 
 let syncRunning = false;
 let actionInProgress = false;
 let logLineCount = 0;
+let steamGuardCodeRequired = true;
 
 const statusClassNames = [
   "status-idle",
@@ -213,7 +215,7 @@ const setCredentialsCollapsed = (collapsed) => {
     return;
   }
 
-  credentialsFieldsEl.hidden = collapsed;
+  credentialsFieldsEl.style.display = collapsed ? "none" : "grid";
   credentialsToggleButton.textContent = collapsed
     ? "Show Credentials"
     : "Hide Credentials";
@@ -253,28 +255,49 @@ const hideSteamGuardPrompt = () => {
     return;
   }
 
+  steamGuardCodeRequired = true;
   steamGuardPrompt.hidden = true;
 
   if (steamGuardPromptInput) {
     steamGuardPromptInput.value = "";
+    steamGuardPromptInput.placeholder = "Steam Guard code";
+    steamGuardPromptInput.disabled = false;
+  }
+
+  if (steamGuardSubmitButton) {
+    steamGuardSubmitButton.textContent = "Submit Code";
   }
 
   syncControls();
 };
 
-const showSteamGuardPrompt = (detail) => {
+const showSteamGuardPrompt = (detail, options = {}) => {
   if (!steamGuardPrompt) {
     return;
   }
 
+  const { requiresCode = true, submitLabel } = options;
+  steamGuardCodeRequired = requiresCode;
   steamGuardPrompt.hidden = false;
 
   if (steamGuardPromptDetail) {
     steamGuardPromptDetail.textContent = detail;
   }
 
+  if (steamGuardSubmitButton) {
+    steamGuardSubmitButton.textContent = submitLabel || "Submit Code";
+  }
+
   if (steamGuardPromptInput) {
-    steamGuardPromptInput.focus();
+    steamGuardPromptInput.disabled = !requiresCode;
+    steamGuardPromptInput.placeholder = requiresCode
+      ? "Steam Guard code"
+      : "No code required";
+    if (requiresCode) {
+      steamGuardPromptInput.focus();
+    } else {
+      steamGuardPromptInput.value = "";
+    }
   }
 
   syncControls();
@@ -368,7 +391,11 @@ const syncControls = () => {
 
   if (steamGuardSubmitButton) {
     const promptVisible = Boolean(steamGuardPrompt) && !steamGuardPrompt.hidden;
-    steamGuardSubmitButton.disabled = actionInProgress || !promptVisible;
+    const code = steamGuardPromptInput?.value.trim() ?? "";
+    steamGuardSubmitButton.disabled =
+      actionInProgress ||
+      !promptVisible ||
+      (steamGuardCodeRequired && code.length === 0);
   }
 };
 
@@ -438,7 +465,7 @@ if (credentialsToggleButton) {
   setCredentialsCollapsed(loadCollapsedCredentialsPreference());
 
   credentialsToggleButton.addEventListener("click", () => {
-    const collapsed = !(credentialsFieldsEl?.hidden ?? false);
+    const collapsed = credentialsFieldsEl?.style.display !== "none";
     setCredentialsCollapsed(collapsed);
     saveCollapsedCredentialsPreference(collapsed);
   });
@@ -545,7 +572,10 @@ if (invoke && listen) {
   });
 
   steamGuardOpenButton?.addEventListener("click", () => {
-    showSteamGuardPrompt("Enter your latest Steam Guard code.");
+    showSteamGuardPrompt("Enter your latest Steam Guard code.", {
+      requiresCode: true,
+      submitLabel: "Submit Code",
+    });
     setStatus("starting", "Waiting for Steam Guard code...");
     setSteamStatus("guard", "Enter your latest Steam Guard code.");
   });
@@ -559,32 +589,58 @@ if (invoke && listen) {
   steamGuardSubmitButton?.addEventListener("click", async () => {
     const code = steamGuardPromptInput?.value.trim() ?? "";
 
-    if (!code) {
+    if (steamGuardCodeRequired && !code) {
       setStatus("error", "Steam Guard code is required.");
       return;
     }
 
+    const submittedCode = steamGuardCodeRequired
+      ? code
+      : steamGuardApprovedToken;
+
     try {
       await runAction(async () => {
-        appendLog("[ui] Sending Steam Guard code...");
-        await invoke("submit_steam_guard_code", { code });
+        appendLog(
+          steamGuardCodeRequired
+            ? "[ui] Sending Steam Guard code..."
+            : "[ui] Confirming Steam sign-in approval..."
+        );
+        await invoke("submit_steam_guard_code", { code: submittedCode });
       });
-      appendLog("[ui] Submitted Steam Guard code.");
+      appendLog(
+        steamGuardCodeRequired
+          ? "[ui] Submitted Steam Guard code."
+          : "[ui] Submitted Steam sign-in approval confirmation."
+      );
       hideSteamGuardPrompt();
-      setStatus("starting", "Submitted Steam Guard code. Waiting for login...");
+      setStatus(
+        "starting",
+        steamGuardCodeRequired
+          ? "Submitted Steam Guard code. Waiting for login..."
+          : "Submitted Steam sign-in approval. Waiting for login..."
+      );
       setSteamStatus(
         "connecting",
-        "Submitted Steam Guard code. Waiting for login..."
+        steamGuardCodeRequired
+          ? "Submitted Steam Guard code. Waiting for login..."
+          : "Submitted Steam sign-in approval. Waiting for login..."
       );
     } catch (error) {
       const message = formatError(error);
-      appendLog(`[ui] Failed to submit Steam Guard code: ${message}`);
-      setStatus("error", `Failed to submit Steam Guard code: ${message}`);
-      setSteamStatus("error", `Failed to submit Steam Guard code: ${message}`);
+      appendLog(`[ui] Failed to submit Steam Guard response: ${message}`);
+      setStatus("error", `Failed to submit Steam Guard response: ${message}`);
+      setSteamStatus(
+        "error",
+        `Failed to submit Steam Guard response: ${message}`
+      );
     }
   });
 
-  steamGuardPromptInput?.addEventListener("keydown", async (event) => {
+  steamGuardPromptInput?.addEventListener("input", () => {
+    syncControls();
+  });
+
+  steamGuardPromptInput?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") {
       return;
     }
@@ -609,18 +665,29 @@ if (invoke && listen) {
     if (line.includes(steamGuardMarker)) {
       const domainMatch = line.match(/domain=([^\s]+)/);
       const retry = /retry=true/.test(line);
+      const modeMatch = line.match(/mode=([^\s]+)/);
+      const mode = modeMatch?.[1] ?? "code";
       const domain =
         domainMatch?.[1] && domainMatch[1] !== "unknown"
           ? domainMatch[1]
           : null;
+      const requiresCode = mode !== "approval" || retry;
       const detail = retry
         ? "Previous code was invalid. Enter a new Steam Guard code."
-        : domain
-        ? `Enter the Steam Guard code sent to ${domain}.`
-        : "Enter the latest Steam Guard code to continue login.";
+        : requiresCode
+        ? domain
+          ? `Enter the Steam Guard code sent to ${domain}.`
+          : "Enter your Steam Guard code to continue login."
+        : "Approve the sign-in request in Steam, then click Continue.";
 
-      showSteamGuardPrompt(detail);
-      setStatus("starting", "Steam Guard code required.");
+      showSteamGuardPrompt(detail, {
+        requiresCode,
+        submitLabel: requiresCode ? "Submit Code" : "Continue",
+      });
+      setStatus(
+        "starting",
+        requiresCode ? "Steam Guard code required." : "Steam approval required."
+      );
       setSteamStatus("guard", detail);
     } else if (line.includes("Logged into Steam")) {
       hideSteamGuardPrompt();

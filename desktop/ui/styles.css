@@ -1228,6 +1228,10 @@ button:disabled {
   }
 }
 
+.grid {
+  display: grid;
+}
+
 .hidden {
   display: none;
 }
