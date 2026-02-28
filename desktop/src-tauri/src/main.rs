@@ -651,3 +651,45 @@ pub fn run() {
 fn main() {
     run();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{oauth_origin_from_redirect_uri, oauth_port_from_redirect_uri};
+
+    #[test]
+    fn oauth_port_defaults_to_8888_when_redirect_is_missing() {
+        assert_eq!(oauth_port_from_redirect_uri(None), Some(8888));
+    }
+
+    #[test]
+    fn oauth_port_parses_explicit_port() {
+        assert_eq!(
+            oauth_port_from_redirect_uri(Some("http://127.0.0.1:9999/callback")),
+            Some(9999)
+        );
+    }
+
+    #[test]
+    fn oauth_port_skips_cleanup_when_no_explicit_port() {
+        assert_eq!(
+            oauth_port_from_redirect_uri(Some("http://127.0.0.1/callback")),
+            None
+        );
+    }
+
+    #[test]
+    fn oauth_origin_uses_redirect_host_and_port() {
+        assert_eq!(
+            oauth_origin_from_redirect_uri(Some("http://localhost:3456/callback")),
+            "http://localhost:3456"
+        );
+    }
+
+    #[test]
+    fn oauth_origin_defaults_when_redirect_invalid() {
+        assert_eq!(
+            oauth_origin_from_redirect_uri(Some("https://127.0.0.1:8888/callback")),
+            "http://127.0.0.1:8888"
+        );
+    }
+}

@@ -31,6 +31,11 @@ export type SpotifyClient = {
   getTrack: (id: string) => Promise<TrackDetails>;
 };
 
+export type SpotifyCurrentTrackResponse = {
+  is_playing: boolean;
+  item: CurrentTrack | null;
+};
+
 type SpotifyTokenResponse = {
   access_token: string;
   refresh_token?: string;
@@ -374,59 +379,76 @@ const initSpotify = async (
 
   return {
     getMyCurrentPlayingTrack: async () => {
-      type SpotifyCurrentTrackResponse = {
-        is_playing: boolean;
-        item: CurrentTrack | null;
-      };
-
-      const requestCurrentPlayingTrack = async (
-        retryWithRefresh = true
-      ): Promise<SpotifyCurrentTrackResponse> => {
-        const response = await fetch(CURRENT_TRACK_URL, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
-
-        if (response.status === 204) {
-          return { is_playing: false, item: null };
-        }
-
-        if (response.status === 401 && retryWithRefresh) {
-          if (!refreshToken) {
-            openLoginForReauthorization(
-              "Spotify access token expired and no refresh token is available."
-            );
-          } else {
-            try {
-              await refreshAccessToken();
-              return requestCurrentPlayingTrack(false);
-            } catch (refreshError) {
-              openLoginForReauthorization(
-                "Failed to refresh Spotify token after playback request.",
-                refreshError
-              );
-            }
-          }
-        }
-
-        if (!response.ok) {
-          const body = await response.text();
-          throw new Error(
-            `Spotify API request failed (${response.status}): ${body}`
-          );
-        }
-
-        return (await response.json()) as SpotifyCurrentTrackResponse;
-      };
-
-      return requestCurrentPlayingTrack();
+      return fetchCurrentPlayingTrackWithRefresh({
+        fetchCurrentTrack: () =>
+          fetch(CURRENT_TRACK_URL, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }),
+        refreshTokenAvailable: () => Boolean(refreshToken),
+        refreshAccessToken,
+        onReauthorizationRequired: openLoginForReauthorization,
+      });
     },
     getTrack: async (id: string) => {
       const trackUrl = `https://api.spotify.com/v1/tracks/${id}`;
       return spotifyRequest<TrackDetails>(trackUrl);
     },
   };
+};
+
+type FetchCurrentPlayingTrackWithRefreshArgs = {
+  fetchCurrentTrack: () => Promise<Response>;
+  refreshTokenAvailable: () => boolean;
+  refreshAccessToken: () => Promise<void>;
+  onReauthorizationRequired: (reason: string, error?: unknown) => void;
+  retryWithRefresh?: boolean;
+};
+
+export const fetchCurrentPlayingTrackWithRefresh = async ({
+  fetchCurrentTrack,
+  refreshTokenAvailable,
+  refreshAccessToken,
+  onReauthorizationRequired,
+  retryWithRefresh = true,
+}: FetchCurrentPlayingTrackWithRefreshArgs): Promise<SpotifyCurrentTrackResponse> => {
+  const response = await fetchCurrentTrack();
+
+  if (response.status === 204) {
+    return { is_playing: false, item: null };
+  }
+
+  if (response.status === 401 && retryWithRefresh) {
+    if (!refreshTokenAvailable()) {
+      onReauthorizationRequired(
+        "Spotify access token expired and no refresh token is available."
+      );
+    } else {
+      try {
+        await refreshAccessToken();
+        return fetchCurrentPlayingTrackWithRefresh({
+          fetchCurrentTrack,
+          refreshTokenAvailable,
+          refreshAccessToken,
+          onReauthorizationRequired,
+          retryWithRefresh: false,
+        });
+      } catch (refreshError) {
+        onReauthorizationRequired(
+          "Failed to refresh Spotify token after playback request.",
+          refreshError
+        );
+      }
+    }
+  }
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Spotify API request failed (${response.status}): ${body}`);
+  }
+
+  return (await response.json()) as SpotifyCurrentTrackResponse;
 };
 
 export { initSpotify };
