@@ -391,7 +391,6 @@ fn start_sync(
         .env("CLIENTSECRET", client_secret)
         .env("STEAMUSERNAME", steam_username)
         .env("STEAMPASSWORD", steam_password)
-        .env("STEAM_DEBUG", "1")
         .env("NOTPLAYING", not_playing)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
