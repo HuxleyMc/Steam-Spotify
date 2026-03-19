@@ -170,7 +170,7 @@ const requestSteamGuardCode = (
 
   if (pendingSteamGuardCodes.length > 0) {
     const queuedCode = pendingSteamGuardCodes.shift() as string;
-    if (domain || queuedCode.length > 0) {
+    if (queuedCode.length > 0) {
       console.log("[steam] Using queued Steam Guard response.");
     } else {
       console.log("[steam] Using queued Steam approval confirmation.");
