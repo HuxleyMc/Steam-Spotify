@@ -357,6 +357,7 @@ const initSpotify = async (
       } else {
         try {
           await refreshAccessToken();
+          await response.body?.cancel();
           return spotifyRequest<T>(input, false);
         } catch (refreshError) {
           openLoginForReauthorization(
@@ -427,6 +428,7 @@ export const fetchCurrentPlayingTrackWithRefresh = async ({
     } else {
       try {
         await refreshAccessToken();
+        await response.body?.cancel();
         return fetchCurrentPlayingTrackWithRefresh({
           fetchCurrentTrack,
           refreshTokenAvailable,

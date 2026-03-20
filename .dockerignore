@@ -1,0 +1,5 @@
+.env
+.steam-spotify-tokens.json
+node_modules
+dist
+desktop
