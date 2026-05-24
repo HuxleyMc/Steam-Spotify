@@ -10,7 +10,7 @@ bun install
 
 ## Run
 
-- Canonical:
+- Canonical desktop app:
 
 ```bash
 bun run start
@@ -28,7 +28,8 @@ bun run start:local
 bun run dev
 ```
 
-`start` and `start:local` currently resolve to the same command.
+`start`, `start:local`, and `dev` run the Tauri desktop app. Use
+`bun run worker` only when developing the internal sync worker directly.
 
 ## Local Quality Checklist
 

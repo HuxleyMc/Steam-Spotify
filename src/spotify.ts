@@ -42,6 +42,12 @@ type SpotifyTokenResponse = {
   expires_in: number;
 };
 
+const isLoopbackHost = (hostname: string) => {
+  return (
+    hostname === "127.0.0.1" || hostname === "localhost" || hostname === "[::1]"
+  );
+};
+
 const writeText = (res: ServerResponse, statusCode: number, text: string) => {
   res.writeHead(statusCode, { "Content-Type": "text/plain; charset=utf-8" });
   res.end(text);
@@ -63,6 +69,12 @@ const resolveRedirectUri = () => {
 
     if (parsed.protocol !== "http:") {
       throw new Error("SPOTIFY_REDIRECT_URI must use http://");
+    }
+
+    if (!isLoopbackHost(parsed.hostname)) {
+      throw new Error(
+        "SPOTIFY_REDIRECT_URI must use localhost, 127.0.0.1, or [::1]"
+      );
     }
 
     if (!parsed.pathname || parsed.pathname === "/") {
@@ -132,6 +144,8 @@ const initSpotify = async (
   const callbackPath = redirectUrl.pathname;
   const loginUrl = `${redirectUrl.origin}/login`;
   const oauthPort = Number.parseInt(redirectUrl.port || "80", 10);
+  const oauthHost =
+    redirectUrl.hostname === "[::1]" ? "::1" : redirectUrl.hostname;
 
   if (Number.isNaN(oauthPort) || oauthPort <= 0 || oauthPort > 65535) {
     throw new Error(`Invalid OAuth port in redirect URI: ${redirectUri}`);
@@ -298,7 +312,7 @@ const initSpotify = async (
     }
   );
 
-  server.listen(oauthPort, () => {
+  server.listen(oauthPort, oauthHost, () => {
     console.log(`OAuth server listening at ${redirectUrl.origin}`);
   });
 

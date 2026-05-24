@@ -18,7 +18,7 @@ on:
         required: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-desktop:
@@ -41,7 +41,7 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.3.5
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -75,6 +75,8 @@ jobs:
     name: Create Beta Release
     runs-on: ubuntu-latest
     needs: build-desktop
+    permissions:
+      contents: write
 
     steps:
       - name: Resolve release metadata

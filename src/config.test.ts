@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -11,6 +11,7 @@ const REQUIRED_ENV_KEYS = [
   "STEAMUSERNAME",
   "STEAMPASSWORD",
   "NOTPLAYING",
+  "STEAM_SPOTIFY_TOKEN_STORE_PATH",
 ] as const;
 
 const TOKEN_FILE = ".steam-spotify-tokens.json";
@@ -82,6 +83,8 @@ describe("config", () => {
   });
 
   test("persists and reloads spotify tokens", async () => {
+    const tokenPath = path.join(tempDir, TOKEN_FILE);
+
     await saveSpotifyTokens({
       accessToken: "access",
       refreshToken: "refresh",
@@ -94,6 +97,30 @@ describe("config", () => {
       accessToken: "access",
       refreshToken: "refresh",
       expiresIn: 3600,
+    });
+
+    if (process.platform !== "win32") {
+      const mode = (await stat(tokenPath)).mode & 0o777;
+      expect(mode).toBe(0o600);
+    }
+  });
+
+  test("supports an explicit token store path", async () => {
+    const tokenPath = path.join(tempDir, "private", "tokens.json");
+    process.env.STEAM_SPOTIFY_TOKEN_STORE_PATH = tokenPath;
+
+    await saveSpotifyTokens({
+      accessToken: "custom-access",
+      refreshToken: "custom-refresh",
+      expiresIn: 1800,
+    });
+
+    const loaded = await loadSpotifyTokens();
+
+    expect(loaded).toEqual({
+      accessToken: "custom-access",
+      refreshToken: "custom-refresh",
+      expiresIn: 1800,
     });
   });
 

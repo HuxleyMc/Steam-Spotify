@@ -21,12 +21,12 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'"
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self'; style-src 'self'; script-src 'self'"
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app"],
     "icon": ["icons/icon.png"]
   }
 }

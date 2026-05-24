@@ -1,7 +1,12 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const getTokenStorePath = () => {
+  const configured = process.env.STEAM_SPOTIFY_TOKEN_STORE_PATH?.trim();
+  if (configured) {
+    return configured;
+  }
+
   return path.join(process.cwd(), ".steam-spotify-tokens.json");
 };
 
@@ -85,4 +90,5 @@ export const saveSpotifyTokens = async (tokens: SpotifyTokens) => {
 
   await mkdir(path.dirname(tokenStorePath), { recursive: true });
   await writeFile(tokenStorePath, JSON.stringify(tokens, null, 2), "utf8");
+  await chmod(tokenStorePath, 0o600);
 };
