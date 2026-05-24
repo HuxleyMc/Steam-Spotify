@@ -2,6 +2,14 @@ import { initConfig } from "./config";
 import { initSteam, updatePlayingSong } from "./steam";
 import { initSpotify } from "./spotify";
 
+const handleShutdown = (signal: string) => {
+  console.log(`Received ${signal}, shutting down.`);
+  process.exit(0);
+};
+
+process.on("SIGTERM", () => handleShutdown("SIGTERM"));
+process.on("SIGINT", () => handleShutdown("SIGINT"));
+
 const main = async () => {
   const { SteamUsername, SteamPassword, ClientId, ClientSecret, NotPlaying } =
     initConfig();
