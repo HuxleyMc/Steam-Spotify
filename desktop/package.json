@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "2.0.2",
-    "baseline-browser-mapping": "^2.10.0",
-    "caniuse-lite": "^1.0.30001774"
+    "baseline-browser-mapping": "2.10.0",
+    "caniuse-lite": "1.0.30001774"
   }
 }

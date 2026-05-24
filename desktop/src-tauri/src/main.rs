@@ -1,17 +1,31 @@
 use serde::{Deserialize, Serialize};
-use std::fs::{create_dir_all, read_to_string, OpenOptions};
+use std::fs::{create_dir_all, read_to_string, remove_file, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Clone, Default)]
 struct SyncState {
     child: Arc<Mutex<Option<Child>>>,
+}
+
+#[derive(Clone, Default)]
+struct TrayState {
+    menu: Arc<Mutex<Option<TrayMenuItems>>>,
+}
+
+#[derive(Clone)]
+struct TrayMenuItems {
+    status: MenuItem<tauri::Wry>,
+    start: MenuItem<tauri::Wry>,
+    stop: MenuItem<tauri::Wry>,
+    login: MenuItem<tauri::Wry>,
+    auto_start: MenuItem<tauri::Wry>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -28,6 +42,13 @@ struct SyncSettings {
 #[derive(Serialize)]
 struct SyncStatus {
     running: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AutoStartStatus {
+    enabled: bool,
+    supported: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -62,6 +83,59 @@ fn is_sync_running(state: &SyncState) -> Result<bool, String> {
     } else {
         Ok(false)
     }
+}
+
+fn has_required_credentials(settings: &SyncSettings) -> bool {
+    !settings.client_id.trim().is_empty()
+        && !settings.client_secret.trim().is_empty()
+        && !settings.steam_username.trim().is_empty()
+        && !settings.steam_password.is_empty()
+}
+
+fn refresh_tray_menu(app_handle: &AppHandle) {
+    let running = app_handle
+        .try_state::<SyncState>()
+        .and_then(|state| is_sync_running(state.inner()).ok())
+        .unwrap_or(false);
+
+    let has_settings = load_settings(app_handle.clone())
+        .ok()
+        .flatten()
+        .map(|settings| has_required_credentials(&settings))
+        .unwrap_or(false);
+
+    let auto_start_enabled = get_auto_start_status()
+        .map(|status| status.enabled)
+        .unwrap_or(false);
+
+    let Some(tray_state) = app_handle.try_state::<TrayState>() else {
+        return;
+    };
+
+    let Ok(guard) = tray_state.menu.lock() else {
+        return;
+    };
+
+    let Some(menu_items) = guard.as_ref() else {
+        return;
+    };
+
+    let status_text = if running {
+        "Status: Running"
+    } else {
+        "Status: Idle"
+    };
+    let auto_start_text = if auto_start_enabled {
+        "Open at Login: On"
+    } else {
+        "Open at Login: Off"
+    };
+
+    let _ = menu_items.status.set_text(status_text);
+    let _ = menu_items.start.set_enabled(!running && has_settings);
+    let _ = menu_items.stop.set_enabled(running);
+    let _ = menu_items.login.set_enabled(running);
+    let _ = menu_items.auto_start.set_text(auto_start_text);
 }
 
 fn is_project_root(path: &Path) -> bool {
@@ -231,6 +305,122 @@ fn write_private_file(path: &Path, content: &str) -> Result<(), String> {
         .map_err(|err| format!("Failed to flush private file: {err}"))
 }
 
+#[cfg(target_os = "macos")]
+fn launch_agent_path() -> Result<PathBuf, String> {
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .ok_or_else(|| "Could not resolve HOME for LaunchAgent setup.".to_string())?;
+
+    Ok(home
+        .join("Library")
+        .join("LaunchAgents")
+        .join("com.steamspotify.desktop.plist"))
+}
+
+#[cfg(target_os = "macos")]
+fn app_bundle_path_from_exe(path: &Path) -> Option<PathBuf> {
+    path.ancestors()
+        .find(|ancestor| {
+            ancestor
+                .extension()
+                .is_some_and(|extension| extension == "app")
+        })
+        .map(Path::to_path_buf)
+}
+
+#[cfg(target_os = "macos")]
+fn xml_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
+#[cfg(target_os = "macos")]
+fn launch_agent_plist(app_path: &Path) -> String {
+    let app_path = xml_escape(&app_path.to_string_lossy());
+
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.steamspotify.desktop</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/open</string>
+    <string>-a</string>
+    <string>{app_path}</string>
+    <string>--args</string>
+    <string>--background</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>
+"#
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn set_auto_start_enabled(enabled: bool) -> Result<AutoStartStatus, String> {
+    let path = launch_agent_path()?;
+
+    if enabled {
+        let Some(parent) = path.parent() else {
+            return Err("Could not resolve LaunchAgents directory.".to_string());
+        };
+        create_dir_all(parent)
+            .map_err(|err| format!("Could not create LaunchAgents directory: {err}"))?;
+
+        let exe = std::env::current_exe()
+            .map_err(|err| format!("Could not resolve current app path: {err}"))?;
+        let app_path = app_bundle_path_from_exe(&exe).unwrap_or(exe);
+        write_private_file(&path, &launch_agent_plist(&app_path))
+            .map_err(|err| format!("Failed to enable open at login: {err}"))?;
+    } else if path.exists() {
+        remove_file(&path).map_err(|err| format!("Failed to disable open at login: {err}"))?;
+    }
+
+    Ok(AutoStartStatus {
+        enabled: path.exists(),
+        supported: true,
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn get_auto_start_status() -> Result<AutoStartStatus, String> {
+    let path = launch_agent_path()?;
+
+    Ok(AutoStartStatus {
+        enabled: path.exists(),
+        supported: true,
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn set_auto_start_enabled(_enabled: bool) -> Result<AutoStartStatus, String> {
+    Ok(AutoStartStatus {
+        enabled: false,
+        supported: false,
+    })
+}
+
+#[cfg(not(target_os = "macos"))]
+fn get_auto_start_status() -> Result<AutoStartStatus, String> {
+    Ok(AutoStartStatus {
+        enabled: false,
+        supported: false,
+    })
+}
+
+fn should_start_in_background() -> bool {
+    std::env::args().any(|arg| arg == "--background")
+}
+
 fn emit_line(app_handle: &AppHandle, stream: &str, line: String) {
     let payload = LogPayload {
         stream: stream.to_string(),
@@ -246,6 +436,7 @@ fn emit_lifecycle(app_handle: &AppHandle, state: &str, message: String, exit_cod
         exit_code,
     };
     let _ = app_handle.emit("sync-lifecycle", payload);
+    refresh_tray_menu(app_handle);
 }
 
 fn spawn_sync_monitor(app_handle: AppHandle, state: SyncState) {
@@ -390,24 +581,31 @@ fn load_settings(app_handle: AppHandle) -> Result<Option<SyncSettings>, String> 
 
 #[tauri::command]
 fn save_settings(app_handle: AppHandle, settings: SyncSettings) -> Result<(), String> {
+    save_settings_to_disk(app_handle, settings, true)
+}
+
+fn save_settings_to_disk(
+    app_handle: AppHandle,
+    settings: SyncSettings,
+    refresh_tray: bool,
+) -> Result<(), String> {
     let path = settings_path(&app_handle)?;
     let content = serde_json::to_string_pretty(&settings)
         .map_err(|err| format!("Failed to encode settings: {err}"))?;
 
-    write_private_file(&path, &content).map_err(|err| format!("Failed to save settings: {err}"))
+    write_private_file(&path, &content).map_err(|err| format!("Failed to save settings: {err}"))?;
+    if refresh_tray {
+        refresh_tray_menu(&app_handle);
+    }
+    Ok(())
 }
 
-#[tauri::command]
-fn start_sync(
+fn start_sync_with_settings(
     app_handle: AppHandle,
-    state: State<'_, SyncState>,
+    state: &SyncState,
     settings: SyncSettings,
 ) -> Result<(), String> {
-    if settings.client_id.is_empty()
-        || settings.client_secret.is_empty()
-        || settings.steam_username.is_empty()
-        || settings.steam_password.is_empty()
-    {
+    if !has_required_credentials(&settings) {
         return Err("Missing required credentials".to_string());
     }
 
@@ -434,7 +632,7 @@ fn start_sync(
     }
 
     let validated_redirect = spotify_redirect(settings.spotify_redirect_uri.as_deref())?;
-    save_settings(app_handle.clone(), settings.clone())?;
+    save_settings_to_disk(app_handle.clone(), settings.clone(), false)?;
     let token_store = token_store_path(&app_handle)?;
 
     let root = match project_root(&app_handle) {
@@ -504,6 +702,7 @@ fn start_sync(
     }
 
     *guard = Some(child);
+    drop(guard);
     emit_lifecycle(
         &app_handle,
         "running",
@@ -514,15 +713,23 @@ fn start_sync(
 }
 
 #[tauri::command]
-fn stop_sync(app_handle: AppHandle, state: State<'_, SyncState>) -> Result<(), String> {
-    if is_sync_running(&state)? {
+fn start_sync(
+    app_handle: AppHandle,
+    state: State<'_, SyncState>,
+    settings: SyncSettings,
+) -> Result<(), String> {
+    start_sync_with_settings(app_handle, state.inner(), settings)
+}
+
+fn stop_sync_with_state(app_handle: AppHandle, state: &SyncState) -> Result<(), String> {
+    if is_sync_running(state)? {
         emit_lifecycle(
             &app_handle,
             "stopping",
             "Stopping sync process...".to_string(),
             None,
         );
-        terminate_sync_child(&state);
+        terminate_sync_child(state);
         emit_line(&app_handle, "ui", "Sync process stopped".to_string());
         emit_lifecycle(
             &app_handle,
@@ -540,6 +747,11 @@ fn stop_sync(app_handle: AppHandle, state: State<'_, SyncState>) -> Result<(), S
         None,
     );
     Ok(())
+}
+
+#[tauri::command]
+fn stop_sync(app_handle: AppHandle, state: State<'_, SyncState>) -> Result<(), String> {
+    stop_sync_with_state(app_handle, state.inner())
 }
 
 #[tauri::command]
@@ -599,12 +811,11 @@ fn submit_steam_guard_code(
     Ok(())
 }
 
-#[tauri::command]
-fn open_spotify_login(
-    state: State<'_, SyncState>,
+fn open_spotify_login_with_state(
+    state: &SyncState,
     spotify_redirect_uri: Option<String>,
 ) -> Result<(), String> {
-    if !is_sync_running(&state)? {
+    if !is_sync_running(state)? {
         return Err(
             "Sync is not running yet. Click Start Sync first, then open Spotify login.".to_string(),
         );
@@ -642,19 +853,80 @@ fn open_spotify_login(
     Ok(())
 }
 
+#[tauri::command]
+fn open_spotify_login(
+    state: State<'_, SyncState>,
+    spotify_redirect_uri: Option<String>,
+) -> Result<(), String> {
+    open_spotify_login_with_state(state.inner(), spotify_redirect_uri)
+}
+
+#[tauri::command]
+fn get_auto_start() -> Result<AutoStartStatus, String> {
+    get_auto_start_status()
+}
+
+#[tauri::command]
+fn set_auto_start(app_handle: AppHandle, enabled: bool) -> Result<AutoStartStatus, String> {
+    let status = set_auto_start_enabled(enabled)?;
+    refresh_tray_menu(&app_handle);
+    Ok(status)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(SyncState::default())
+        .manage(TrayState::default())
         .setup(|app| {
             let app_handle = app.handle().clone();
             let state = app.state::<SyncState>().inner().clone();
-            spawn_sync_monitor(app_handle, state);
+            spawn_sync_monitor(app_handle.clone(), state);
 
+            let status_item =
+                MenuItem::with_id(app, "status", "Status: Idle", false, None::<&str>)?;
+            let start_item =
+                MenuItem::with_id(app, "tray_start", "Start Sync", false, None::<&str>)?;
+            let stop_item = MenuItem::with_id(app, "tray_stop", "Stop Sync", false, None::<&str>)?;
+            let login_item =
+                MenuItem::with_id(app, "tray_login", "Open Spotify Login", false, None::<&str>)?;
+            let auto_start_item = MenuItem::with_id(
+                app,
+                "tray_auto_start",
+                "Open at Login: Off",
+                true,
+                None::<&str>,
+            )?;
             let show_item =
                 MenuItem::with_id(app, "show", "Show Steam Spotify", true, None::<&str>)?;
             let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+            let separator_one = PredefinedMenuItem::separator(app)?;
+            let separator_two = PredefinedMenuItem::separator(app)?;
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &status_item,
+                    &separator_one,
+                    &start_item,
+                    &stop_item,
+                    &login_item,
+                    &auto_start_item,
+                    &separator_two,
+                    &show_item,
+                    &quit_item,
+                ],
+            )?;
+
+            let tray_state = app.state::<TrayState>().inner().clone();
+            if let Ok(mut guard) = tray_state.menu.lock() {
+                *guard = Some(TrayMenuItems {
+                    status: status_item,
+                    start: start_item,
+                    stop: stop_item,
+                    login: login_item,
+                    auto_start: auto_start_item,
+                });
+            }
 
             TrayIconBuilder::new()
                 .tooltip("Steam Spotify")
@@ -671,6 +943,87 @@ pub fn run() {
                     }
                 })
                 .on_menu_event(|app_handle, event| match event.id().as_ref() {
+                    "tray_start" => match load_settings(app_handle.clone()) {
+                        Ok(Some(settings)) => {
+                            let state = app_handle.state::<SyncState>().inner().clone();
+                            if let Err(err) =
+                                start_sync_with_settings(app_handle.clone(), &state, settings)
+                            {
+                                emit_line(
+                                    app_handle,
+                                    "ui",
+                                    format!("Failed to start from tray: {err}"),
+                                );
+                                emit_lifecycle(app_handle, "error", err, None);
+                                reveal_main_window(app_handle);
+                            }
+                        }
+                        Ok(None) => {
+                            let message =
+                                "Saved settings are required before starting from the tray."
+                                    .to_string();
+                            emit_line(app_handle, "ui", message.clone());
+                            emit_lifecycle(app_handle, "error", message, None);
+                            reveal_main_window(app_handle);
+                        }
+                        Err(err) => {
+                            emit_line(
+                                app_handle,
+                                "ui",
+                                format!("Failed to load saved settings: {err}"),
+                            );
+                            emit_lifecycle(app_handle, "error", err, None);
+                            reveal_main_window(app_handle);
+                        }
+                    },
+                    "tray_stop" => {
+                        let state = app_handle.state::<SyncState>().inner().clone();
+                        if let Err(err) = stop_sync_with_state(app_handle.clone(), &state) {
+                            emit_line(app_handle, "ui", format!("Failed to stop from tray: {err}"));
+                            emit_lifecycle(app_handle, "error", err, None);
+                        }
+                    }
+                    "tray_login" => {
+                        let state = app_handle.state::<SyncState>().inner().clone();
+                        let redirect_uri = load_settings(app_handle.clone())
+                            .ok()
+                            .flatten()
+                            .and_then(|settings| settings.spotify_redirect_uri);
+                        if let Err(err) = open_spotify_login_with_state(&state, redirect_uri) {
+                            emit_line(
+                                app_handle,
+                                "ui",
+                                format!("Failed to open Spotify login: {err}"),
+                            );
+                            emit_lifecycle(app_handle, "error", err, None);
+                            reveal_main_window(app_handle);
+                        }
+                    }
+                    "tray_auto_start" => {
+                        let currently_enabled = get_auto_start_status()
+                            .map(|status| status.enabled)
+                            .unwrap_or(false);
+                        match set_auto_start_enabled(!currently_enabled) {
+                            Ok(status) => {
+                                let label = if status.enabled {
+                                    "enabled"
+                                } else {
+                                    "disabled"
+                                };
+                                emit_line(app_handle, "ui", format!("Open at login {label}."));
+                                refresh_tray_menu(app_handle);
+                            }
+                            Err(err) => {
+                                emit_line(
+                                    app_handle,
+                                    "ui",
+                                    format!("Failed to update open at login: {err}"),
+                                );
+                                emit_lifecycle(app_handle, "error", err, None);
+                                reveal_main_window(app_handle);
+                            }
+                        }
+                    }
                     "show" => reveal_main_window(app_handle),
                     "quit" => {
                         let state = app_handle.state::<SyncState>().inner().clone();
@@ -680,6 +1033,13 @@ pub fn run() {
                     _ => {}
                 })
                 .build(app)?;
+            refresh_tray_menu(&app_handle);
+
+            if should_start_in_background() {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
+                }
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -695,7 +1055,9 @@ pub fn run() {
             start_sync,
             stop_sync,
             submit_steam_guard_code,
-            open_spotify_login
+            open_spotify_login,
+            get_auto_start,
+            set_auto_start
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

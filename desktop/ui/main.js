@@ -42,6 +42,8 @@ const spotifyChecklistDetail = document.querySelector(
 );
 const steamChecklistItem = document.querySelector("#steamChecklistItem");
 const steamChecklistDetail = document.querySelector("#steamChecklistDetail");
+const autoStartToggle = document.querySelector("#autoStartToggle");
+const autoStartDetail = document.querySelector("#autoStartDetail");
 
 const steamGuardMarker = "STEAM_GUARD_REQUIRED";
 const steamUiStatusMarker = "STEAM_UI_STATUS";
@@ -52,6 +54,7 @@ let syncRunning = false;
 let actionInProgress = false;
 let logLineCount = 0;
 let steamGuardCodeRequired = true;
+let autoStartSupported = true;
 
 const statusClassNames = [
   "status-idle",
@@ -243,9 +246,7 @@ const setCredentialsCollapsed = (collapsed) => {
   }
 
   credentialsFieldsEl.style.display = collapsed ? "none" : "";
-  credentialsToggleButton.textContent = collapsed
-    ? "Show setup"
-    : "Hide setup";
+  credentialsToggleButton.textContent = collapsed ? "Show setup" : "Hide setup";
   credentialsToggleButton.setAttribute("aria-expanded", String(!collapsed));
 };
 
@@ -295,6 +296,41 @@ const updateSetupChecklist = () => {
     steamChecklistDetail.textContent = steamReady
       ? "Credentials saved"
       : "Username and password needed";
+  }
+};
+
+const setAutoStartStatus = (status, detail) => {
+  autoStartSupported = Boolean(status?.supported);
+
+  if (autoStartToggle) {
+    autoStartToggle.checked = Boolean(status?.enabled);
+    autoStartToggle.disabled = !autoStartSupported || !invoke;
+  }
+
+  if (autoStartDetail) {
+    if (!autoStartSupported) {
+      autoStartDetail.textContent = "Not supported on this platform";
+    } else {
+      autoStartDetail.textContent =
+        detail ?? (status?.enabled ? "Enabled" : "Disabled");
+    }
+  }
+};
+
+const loadAutoStartStatus = async () => {
+  if (!invoke) {
+    setAutoStartStatus({ enabled: false, supported: false });
+    return;
+  }
+
+  try {
+    const status = await invoke("get_auto_start");
+    setAutoStartStatus(status);
+  } catch (error) {
+    setAutoStartStatus(
+      { enabled: false, supported: false },
+      `Could not load: ${formatError(error)}`
+    );
   }
 };
 
@@ -443,6 +479,9 @@ const syncControls = () => {
     if (steamGuardSubmitButton) {
       steamGuardSubmitButton.disabled = true;
     }
+    if (autoStartToggle) {
+      autoStartToggle.disabled = true;
+    }
     return;
   }
 
@@ -451,6 +490,9 @@ const syncControls = () => {
   stopButton.disabled = actionInProgress || !syncRunning;
   loginButton.disabled = actionInProgress || !syncRunning;
   steamGuardOpenButton.disabled = actionInProgress || !syncRunning;
+  if (autoStartToggle) {
+    autoStartToggle.disabled = actionInProgress || !autoStartSupported;
+  }
 
   if (steamGuardSubmitButton) {
     const promptVisible = Boolean(steamGuardPrompt) && !steamGuardPrompt.hidden;
@@ -655,6 +697,32 @@ if (invoke && listen) {
     updateLogCount();
   });
 
+  autoStartToggle?.addEventListener("change", async () => {
+    const enabled = autoStartToggle.checked;
+    const previousValue = !enabled;
+
+    try {
+      await runAction(async () => {
+        setAutoStartStatus(
+          { enabled, supported: autoStartSupported },
+          enabled ? "Enabling..." : "Disabling..."
+        );
+        const status = await invoke("set_auto_start", { enabled });
+        setAutoStartStatus(status);
+        appendLog(
+          `[ui] Open at login ${status.enabled ? "enabled" : "disabled"}.`
+        );
+      });
+    } catch (error) {
+      autoStartToggle.checked = previousValue;
+      setAutoStartStatus(
+        { enabled: previousValue, supported: autoStartSupported },
+        "Could not update"
+      );
+      appendLog(`[ui] Failed to update open at login: ${error}`);
+    }
+  });
+
   steamGuardSubmitButton?.addEventListener("click", async () => {
     const code = steamGuardPromptInput?.value.trim() ?? "";
 
@@ -798,6 +866,8 @@ if (invoke && listen) {
     .catch((error) => {
       appendLog(`[ui] Failed to load saved settings: ${error}`);
     });
+
+  loadAutoStartStatus();
 } else {
   appendLog(
     "[ui] Tauri API is unavailable. Run this UI through the Tauri app, not a regular browser."
@@ -805,6 +875,7 @@ if (invoke && listen) {
   setStatus("error", "Tauri API unavailable in this context.");
   setSteamStatus("error", "Tauri API unavailable in this context.");
   setStreamState("error");
+  setAutoStartStatus({ enabled: false, supported: false });
   hideSteamGuardPrompt();
   syncControls();
 }

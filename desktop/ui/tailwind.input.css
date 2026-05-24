@@ -13,10 +13,12 @@
 
   body {
     @apply min-h-screen overflow-x-hidden bg-shell font-body text-ink antialiased;
-    background:
-      linear-gradient(135deg, rgba(29, 185, 84, 0.12), transparent 34%),
-      linear-gradient(225deg, rgba(30, 86, 160, 0.14), transparent 38%),
-      #f7f8f5;
+    background: linear-gradient(
+        135deg,
+        rgba(29, 185, 84, 0.12),
+        transparent 34%
+      ),
+      linear-gradient(225deg, rgba(30, 86, 160, 0.14), transparent 38%), #f7f8f5;
   }
 
   html {
@@ -141,7 +143,7 @@
   }
 
   .background-note {
-    @apply rounded-xl border border-steam/20 bg-steam/5 p-4;
+    @apply grid gap-4 rounded-xl border border-steam/20 bg-steam/5 p-4;
   }
 
   .background-note p {
@@ -150,6 +152,42 @@
 
   .background-note span {
     @apply mt-1 block text-sm leading-relaxed text-ink-soft;
+  }
+
+  .toggle-row {
+    @apply flex cursor-pointer items-center gap-3 rounded-lg border border-line bg-white/70 p-3 transition hover:border-steam/30 hover:bg-white;
+  }
+
+  .toggle-row input {
+    @apply sr-only;
+  }
+
+  .toggle-track {
+    @apply relative mt-0 h-6 w-11 shrink-0 rounded-full bg-line transition;
+  }
+
+  .toggle-track::after {
+    @apply absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-soft transition content-[''];
+  }
+
+  .toggle-row input:checked + .toggle-track {
+    @apply bg-spotify;
+  }
+
+  .toggle-row input:checked + .toggle-track::after {
+    @apply translate-x-5;
+  }
+
+  .toggle-row input:disabled + .toggle-track {
+    @apply opacity-50;
+  }
+
+  .toggle-row strong {
+    @apply block text-sm font-extrabold text-ink;
+  }
+
+  .toggle-row small {
+    @apply mt-0.5 block text-xs font-semibold leading-relaxed text-ink-soft;
   }
 
   .main-workspace {
