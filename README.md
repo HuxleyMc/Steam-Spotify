@@ -51,7 +51,7 @@ Use the tray menu to show the window again or quit the app. Quitting stops the s
 
 ## Spotify Redirect URI
 
-In the Spotify Developer Dashboard, add a redirect URI that exactly matches the app setting.
+In the Spotify Developer Dashboard, add a redirect URI that exactly matches the app setting. For safety, the desktop app only accepts loopback HTTP redirect URIs using `127.0.0.1`, `localhost`, or `[::1]`.
 
 Default:
 
@@ -86,7 +86,7 @@ See [desktop/README.md](desktop/README.md) for desktop-specific notes.
 | Problem | Most likely cause | Fix |
 | --- | --- | --- |
 | Spotify login fails with `INVALID_CLIENT` or redirect mismatch | Spotify app redirect URI mismatch | Ensure the dashboard URI exactly matches the redirect URI shown in the app |
-| Sync cannot start on port `8888` | stale local OAuth listener | stop old listeners or restart the desktop app |
+| Sync cannot start on port `8888` | another local process is using the OAuth port | stop the other listener or set a different loopback redirect URI in the app and Spotify dashboard |
 | Steam login rate-limited (`RateLimitExceeded`) | too many recent auth attempts | wait for cooldown, then restart sync |
 | Sync runs but status does not change | Steam auth is not complete | resolve Steam Guard and wait for the connected status |
 | Window closed but music is still syncing | app is running in the tray | use the tray menu to show or quit |

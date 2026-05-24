@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::fs::{create_dir_all, read_to_string, write};
+use std::fs::{create_dir_all, read_to_string, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -68,97 +68,83 @@ fn is_project_root(path: &Path) -> bool {
     path.join("package.json").exists() && path.join("src").join("index.ts").exists()
 }
 
-fn oauth_port_from_redirect_uri(redirect_uri: Option<&str>) -> Option<u16> {
-    let Some(uri) = redirect_uri
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    else {
-        return Some(8888);
-    };
+const DEFAULT_SPOTIFY_REDIRECT_URI: &str = "http://127.0.0.1:8888/callback";
 
-    let Some(without_scheme) = uri.strip_prefix("http://") else {
-        return Some(8888);
-    };
-
-    let host_and_port = without_scheme.split('/').next().unwrap_or_default();
-    if let Some((_, port)) = host_and_port.rsplit_once(':') {
-        return Some(port.parse::<u16>().unwrap_or(8888));
-    }
-
-    None
+#[derive(Debug, PartialEq)]
+struct LocalRedirect {
+    normalized_uri: String,
+    origin: String,
 }
 
-fn oauth_origin_from_redirect_uri(redirect_uri: Option<&str>) -> String {
-    let default_origin = "http://127.0.0.1:8888";
-    let Some(uri) = redirect_uri
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    else {
-        return default_origin.to_string();
-    };
-
-    let Some(without_scheme) = uri.strip_prefix("http://") else {
-        return default_origin.to_string();
-    };
-
-    let host_and_port = without_scheme.split('/').next().unwrap_or_default();
-    if host_and_port.is_empty() {
-        return default_origin.to_string();
-    }
-
-    format!("http://{host_and_port}")
+fn is_loopback_host(host: &str) -> bool {
+    matches!(host, "127.0.0.1" | "localhost" | "[::1]")
 }
 
-#[cfg(unix)]
-fn terminate_stale_listener_on_port(app_handle: &AppHandle, port: u16) {
-    let port_spec = format!("-iTCP:{port}");
-    let output = match Command::new("lsof")
-        .arg("-nP")
-        .arg("-t")
-        .arg(port_spec)
-        .arg("-sTCP:LISTEN")
-        .output()
-    {
-        Ok(output) => output,
-        Err(err) => {
-            emit_line(
-                app_handle,
-                "ui",
-                format!("Could not inspect OAuth port {port}: {err}"),
-            );
-            return;
+fn parse_local_redirect_uri(uri: &str) -> Result<LocalRedirect, String> {
+    let trimmed = uri.trim();
+    let without_scheme = trimmed
+        .strip_prefix("http://")
+        .ok_or_else(|| "Spotify redirect URI must use http://".to_string())?;
+    let host_and_path = without_scheme
+        .split_once('/')
+        .ok_or_else(|| "Spotify redirect URI must include a callback path.".to_string())?;
+    let host_and_port = host_and_path.0;
+    let path = format!("/{}", host_and_path.1);
+
+    if path == "/" {
+        return Err("Spotify redirect URI must include a callback path.".to_string());
+    }
+
+    let port = if host_and_port.starts_with('[') {
+        let end = host_and_port
+            .find(']')
+            .ok_or_else(|| "Spotify redirect URI has an invalid IPv6 host.".to_string())?;
+        let remainder = &host_and_port[end + 1..];
+        if remainder.is_empty() {
+            None
+        } else {
+            Some(
+                remainder
+                    .strip_prefix(':')
+                    .ok_or_else(|| "Spotify redirect URI has an invalid IPv6 host.".to_string())?,
+            )
         }
+    } else {
+        host_and_port.rsplit_once(':').map(|(_, port)| port)
     };
 
-    let pids: Vec<String> = String::from_utf8_lossy(&output.stdout)
-        .lines()
+    let host = if host_and_port.starts_with('[') {
+        let end = host_and_port
+            .find(']')
+            .ok_or_else(|| "Spotify redirect URI has an invalid IPv6 host.".to_string())?;
+        &host_and_port[..=end]
+    } else {
+        host_and_port.split(':').next().unwrap_or_default()
+    };
+
+    if !is_loopback_host(host) {
+        return Err("Spotify redirect URI must use localhost, 127.0.0.1, or [::1].".to_string());
+    }
+
+    if let Some(port) = port {
+        if port.is_empty() || port.parse::<u16>().is_err() {
+            return Err("Spotify redirect URI has an invalid port.".to_string());
+        }
+    }
+
+    Ok(LocalRedirect {
+        normalized_uri: trimmed.to_string(),
+        origin: format!("http://{host_and_port}"),
+    })
+}
+
+fn spotify_redirect(redirect_uri: Option<&str>) -> Result<LocalRedirect, String> {
+    let uri = redirect_uri
         .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .map(ToOwned::to_owned)
-        .collect();
+        .filter(|value| !value.is_empty())
+        .unwrap_or(DEFAULT_SPOTIFY_REDIRECT_URI);
 
-    if pids.is_empty() {
-        return;
-    }
-
-    emit_line(
-        app_handle,
-        "ui",
-        format!(
-            "Detected existing listener(s) on OAuth port {port}: {}. Attempting cleanup.",
-            pids.join(", ")
-        ),
-    );
-
-    for pid in &pids {
-        let _ = Command::new("kill").arg("-TERM").arg(pid).status();
-    }
-
-    std::thread::sleep(Duration::from_millis(300));
-
-    for pid in &pids {
-        let _ = Command::new("kill").arg("-KILL").arg(pid).status();
-    }
+    parse_local_redirect_uri(uri)
 }
 
 fn find_root_from_candidate(candidate: PathBuf) -> Option<PathBuf> {
@@ -213,6 +199,36 @@ fn settings_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
     create_dir_all(&base).map_err(|err| format!("Could not create config directory: {err}"))?;
 
     Ok(base.join("settings.json"))
+}
+
+fn token_store_path(app_handle: &AppHandle) -> Result<PathBuf, String> {
+    let base = app_handle
+        .path()
+        .app_config_dir()
+        .map_err(|err| format!("Could not resolve app config directory: {err}"))?;
+
+    create_dir_all(&base).map_err(|err| format!("Could not create config directory: {err}"))?;
+
+    Ok(base.join("spotify-tokens.json"))
+}
+
+fn write_private_file(path: &Path, content: &str) -> Result<(), String> {
+    let mut options = OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+
+    let mut file = options
+        .open(path)
+        .map_err(|err| format!("Failed to open private file: {err}"))?;
+    file.write_all(content.as_bytes())
+        .map_err(|err| format!("Failed to write private file: {err}"))?;
+    file.flush()
+        .map_err(|err| format!("Failed to flush private file: {err}"))
 }
 
 fn emit_line(app_handle: &AppHandle, stream: &str, line: String) {
@@ -378,7 +394,7 @@ fn save_settings(app_handle: AppHandle, settings: SyncSettings) -> Result<(), St
     let content = serde_json::to_string_pretty(&settings)
         .map_err(|err| format!("Failed to encode settings: {err}"))?;
 
-    write(path, content).map_err(|err| format!("Failed to save settings: {err}"))
+    write_private_file(&path, &content).map_err(|err| format!("Failed to save settings: {err}"))
 }
 
 #[tauri::command]
@@ -417,7 +433,9 @@ fn start_sync(
         }
     }
 
+    let validated_redirect = spotify_redirect(settings.spotify_redirect_uri.as_deref())?;
     save_settings(app_handle.clone(), settings.clone())?;
+    let token_store = token_store_path(&app_handle)?;
 
     let root = match project_root(&app_handle) {
         Ok(root) => root,
@@ -442,20 +460,6 @@ fn start_sync(
         not_playing,
     } = settings;
 
-    #[cfg(unix)]
-    {
-        if let Some(oauth_port) = oauth_port_from_redirect_uri(spotify_redirect_uri.as_deref()) {
-            terminate_stale_listener_on_port(&app_handle, oauth_port);
-        } else {
-            emit_line(
-                &app_handle,
-                "ui",
-                "Skipping OAuth listener cleanup because redirect URI has no explicit port."
-                    .to_string(),
-            );
-        }
-    }
-
     let mut command = Command::new("bun");
     command
         .arg("run")
@@ -466,15 +470,18 @@ fn start_sync(
         .env("STEAMUSERNAME", steam_username)
         .env("STEAMPASSWORD", steam_password)
         .env("NOTPLAYING", not_playing)
+        .env("STEAM_SPOTIFY_TOKEN_STORE_PATH", token_store)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    if let Some(redirect_uri) = spotify_redirect_uri {
-        let trimmed = redirect_uri.trim();
-        if !trimmed.is_empty() {
-            command.env("SPOTIFY_REDIRECT_URI", trimmed);
-        }
+    if spotify_redirect_uri
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .is_some()
+    {
+        command.env("SPOTIFY_REDIRECT_URI", validated_redirect.normalized_uri);
     }
 
     let mut child = match command.spawn() {
@@ -603,8 +610,8 @@ fn open_spotify_login(
         );
     }
 
-    let oauth_origin = oauth_origin_from_redirect_uri(spotify_redirect_uri.as_deref());
-    let url = format!("{oauth_origin}/login");
+    let redirect = spotify_redirect(spotify_redirect_uri.as_deref())?;
+    let url = format!("{}/login", redirect.origin);
 
     #[cfg(target_os = "macos")]
     {
@@ -700,42 +707,45 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{oauth_origin_from_redirect_uri, oauth_port_from_redirect_uri};
+    use super::spotify_redirect;
 
     #[test]
-    fn oauth_port_defaults_to_8888_when_redirect_is_missing() {
-        assert_eq!(oauth_port_from_redirect_uri(None), Some(8888));
+    fn spotify_redirect_defaults_to_loopback_callback() {
+        let redirect = spotify_redirect(None).expect("default redirect should parse");
+
+        assert_eq!(redirect.normalized_uri, "http://127.0.0.1:8888/callback");
+        assert_eq!(redirect.origin, "http://127.0.0.1:8888");
     }
 
     #[test]
-    fn oauth_port_parses_explicit_port() {
-        assert_eq!(
-            oauth_port_from_redirect_uri(Some("http://127.0.0.1:9999/callback")),
-            Some(9999)
-        );
+    fn spotify_redirect_accepts_localhost() {
+        let redirect = spotify_redirect(Some("http://localhost:3456/callback"))
+            .expect("localhost redirect should parse");
+
+        assert_eq!(redirect.normalized_uri, "http://localhost:3456/callback");
+        assert_eq!(redirect.origin, "http://localhost:3456");
     }
 
     #[test]
-    fn oauth_port_skips_cleanup_when_no_explicit_port() {
-        assert_eq!(
-            oauth_port_from_redirect_uri(Some("http://127.0.0.1/callback")),
-            None
-        );
+    fn spotify_redirect_accepts_ipv6_loopback() {
+        let redirect = spotify_redirect(Some("http://[::1]:3456/callback"))
+            .expect("IPv6 loopback redirect should parse");
+
+        assert_eq!(redirect.origin, "http://[::1]:3456");
     }
 
     #[test]
-    fn oauth_origin_uses_redirect_host_and_port() {
-        assert_eq!(
-            oauth_origin_from_redirect_uri(Some("http://localhost:3456/callback")),
-            "http://localhost:3456"
-        );
+    fn spotify_redirect_rejects_external_hosts() {
+        assert!(spotify_redirect(Some("http://example.com:8888/callback")).is_err());
     }
 
     #[test]
-    fn oauth_origin_defaults_when_redirect_invalid() {
-        assert_eq!(
-            oauth_origin_from_redirect_uri(Some("https://127.0.0.1:8888/callback")),
-            "http://127.0.0.1:8888"
-        );
+    fn spotify_redirect_rejects_non_http_scheme() {
+        assert!(spotify_redirect(Some("https://127.0.0.1:8888/callback")).is_err());
+    }
+
+    #[test]
+    fn spotify_redirect_rejects_missing_callback_path() {
+        assert!(spotify_redirect(Some("http://127.0.0.1:8888")).is_err());
     }
 }

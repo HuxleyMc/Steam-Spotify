@@ -84,3 +84,4 @@ Run it manually (`workflow_dispatch`) to:
 - The desktop app launches the internal Bun sync worker.
 - Bun must be available on the machine running the desktop app.
 - Settings are stored in app config as `settings.json`.
+- Spotify OAuth tokens are stored in app config as `spotify-tokens.json` with private file permissions where supported.

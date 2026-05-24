@@ -1,0 +1,6 @@
+.env
+.steam-spotify-tokens.json
+desktop/src-tauri/target
+desktop/node_modules
+dist
+node_modules
