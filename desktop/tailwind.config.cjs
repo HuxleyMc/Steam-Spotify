@@ -4,29 +4,28 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        shell: "#ece7de",
-        parchment: "#f8f4ec",
-        sand: "#e5ddcf",
-        line: "#c9bca7",
-        ink: "#1a1711",
-        "ink-soft": "#4f473b",
-        cobalt: "#2d4fb8",
-        mint: "#2f9377",
-        ember: "#b74f1f",
+        shell: "#f3f5f0",
+        line: "#d9dfd5",
+        ink: "#17201b",
+        "ink-soft": "#5c675f",
+        spotify: "#1db954",
+        "spotify-dark": "#169744",
+        steam: "#1e56a0",
+        ember: "#c2472d",
+        "ember-dark": "#a83824",
       },
       fontFamily: {
-        display: ['"Iowan Old Style"', '"Palatino Linotype"', '"Book Antiqua"', "serif"],
-        body: ['"Avenir Next"', '"Segoe UI"', '"Trebuchet MS"', "sans-serif"],
+        display: ['"Avenir Next"', '"Segoe UI"', "Inter", "sans-serif"],
+        body: ['"Avenir Next"', '"Segoe UI"', "Inter", "sans-serif"],
         mono: ['"SFMono-Regular"', '"Menlo"', '"Monaco"', "monospace"],
       },
       boxShadow: {
-        panel: "0 14px 28px -20px rgba(32, 22, 8, 0.55)",
+        panel: "0 18px 42px -30px rgba(23, 32, 27, 0.45)",
+        soft: "0 12px 28px -18px rgba(23, 32, 27, 0.65)",
       },
       backgroundImage: {
-        grain:
-          "radial-gradient(circle at 1px 1px, rgba(48, 39, 27, 0.08) 1px, transparent 0)",
         halo:
-          "radial-gradient(circle at 24% 20%, rgba(45, 79, 184, 0.26), transparent 48%), radial-gradient(circle at 84% 74%, rgba(183, 79, 31, 0.18), transparent 40%)",
+          "radial-gradient(circle at 22% 20%, rgba(29, 185, 84, 0.18), transparent 42%), radial-gradient(circle at 88% 78%, rgba(30, 86, 160, 0.14), transparent 40%)",
       },
       keyframes: {
         pulseSoft: {

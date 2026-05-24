@@ -1,12 +1,6 @@
 # Steam Spotify
 
-Sync Spotify "currently playing" to your Steam status.
-
-## Project Status
-
-This repository is a rewrite of the project focused on an easy-to-use desktop app.
-
-The legacy CLI-first version is still available on the `v2-backup` branch, but it is no longer actively maintained.
+Desktop app that syncs Spotify "currently playing" to your Steam status.
 
 When music is playing:
 
@@ -14,128 +8,88 @@ When music is playing:
 
 When nothing is playing:
 
-`NOTPLAYING` (fallback text)
+`NOTPLAYING` fallback text, configured in the app.
 
 ## What You Need
 
 - Bun 1.1+
+- Rust toolchain for Tauri development/builds
 - Steam username and password
-- Spotify developer app (`CLIENTID` + `CLIENTSECRET`)
+- Spotify developer app client ID and client secret
 
-## Choose Your Run Mode
+## Run The Desktop App
 
-- Desktop app (recommended): [desktop/README.md](desktop/README.md)
-- CLI only: follow the steps below
-
-## CLI Quick Start
-
-1. Install dependencies:
+Install dependencies once:
 
 ```bash
 bun install
+cd desktop
+bun install
 ```
 
-2. Create `.env`:
-
-```bash
-cp example.env .env
-```
-
-3. Fill required values in `.env`:
-
-- `CLIENTID`
-- `CLIENTSECRET`
-- `STEAMUSERNAME`
-- `STEAMPASSWORD`
-
-Optional values:
-
-- `NOTPLAYING` (default: `Monkey`)
-- `SPOTIFY_REDIRECT_URI` (default: `http://127.0.0.1:8888/callback`)
-- `STEAMGUARD` (optional one-time code for CLI login challenge)
-- `STEAM_DEBUG=1` for verbose Steam logs
-
-4. In Spotify Developer Dashboard, add a redirect URI that exactly matches runtime.
-Default:
-
-`http://127.0.0.1:8888/callback`
-
-5. Start sync:
+Start the desktop app from the repository root:
 
 ```bash
 bun run start
 ```
 
-6. Open Spotify auth page:
+You can also run it from `desktop/`:
 
-`http://127.0.0.1:8888/login`
-
-## First Run Checklist
-
-Expected logs:
-
-```text
-Config loaded.
-Initializing Spotify client...
-OAuth server listening at http://127.0.0.1:8888
-Spotify API ready!
-Initializing Steam session...
-Attempting Steam login...
-Logged into Steam
-Starting playback sync loop...
+```bash
+bun run dev
 ```
 
-If Spotify auth is not completed within about 5 minutes, the process exits and you can run `bun run start` again.
+## Typical Flow
 
-## Steam Guard Behavior
+1. Add Spotify client details and Steam credentials in the desktop app.
+2. Click `Start Sync`.
+3. Click `Open Spotify Login` and approve access.
+4. Complete the Steam Guard prompt if Steam asks for a code or app approval.
+5. Close the window when you are done monitoring; the app keeps running from the tray.
 
-Steam may challenge login in two ways:
+Use the tray menu to show the window again or quit the app. Quitting stops the sync helper.
 
-1. Code challenge:
-Enter the code from Steam.
+## Spotify Redirect URI
 
-2. Approval challenge (no code):
-Approve sign-in in Steam app/client.
+In the Spotify Developer Dashboard, add a redirect URI that exactly matches the app setting.
 
-Important behavior:
+Default:
 
-- A Steam Guard response is submitted once per sync run.
-- If Steam challenges again after that response, restart sync (`Stop` then `Start`) to retry cleanly.
+`http://127.0.0.1:8888/callback`
 
 ## Commands
 
-- `bun run start`: run app
-- `bun run start:local`: alias of `start`
-- `bun run dev`: local run for development
-- `bun run format:check`: prettier check (`src/**/*.ts`)
+- `bun run start`: run the desktop app
+- `bun run dev`: run the desktop app
+- `bun run desktop:dev`: run the Tauri app from the root
+- `bun run desktop:build`: build desktop installers
+- `bun run worker`: run the internal sync worker directly for development
+- `bun run format:check`: Prettier check for TypeScript source
 - `bun run typecheck`: TypeScript check
 - `bun run build`: TypeScript build
 - `bun run test`: tests
 
-## Desktop App
+## Desktop Features
 
-Desktop wrapper is in `desktop/` (Tauri).
-
-Features include:
-
-- saved credentials
-- start/stop/restart sync
+- saved local credentials
+- start, stop, and restart sync
 - one-click Spotify login
 - Steam Guard prompt
 - Steam session status panel
-- live logs
+- live helper logs
+- close-to-tray background usage
 
-See: [desktop/README.md](desktop/README.md)
+See [desktop/README.md](desktop/README.md) for desktop-specific notes.
 
 ## Troubleshooting
 
 | Problem | Most likely cause | Fix |
 | --- | --- | --- |
-| `Missing required environment variables` | `.env` missing keys | Fill all required keys in `.env` |
-| `INVALID_CLIENT` or redirect mismatch | Spotify redirect URI mismatch | Ensure dashboard URI exactly matches `SPOTIFY_REDIRECT_URI` or default callback |
-| `Failed to start server. Is port 8888 in use?` | stale listener on OAuth port | stop old process on `8888`, restart sync |
+| Spotify login fails with `INVALID_CLIENT` or redirect mismatch | Spotify app redirect URI mismatch | Ensure the dashboard URI exactly matches the redirect URI shown in the app |
+| Sync cannot start on port `8888` | stale local OAuth listener | stop old listeners or restart the desktop app |
 | Steam login rate-limited (`RateLimitExceeded`) | too many recent auth attempts | wait for cooldown, then restart sync |
-| Sync runs but status not changing | Steam not fully logged in yet | resolve Steam auth challenge and wait for `Logged into Steam` |
+| Sync runs but status does not change | Steam auth is not complete | resolve Steam Guard and wait for the connected status |
+| Window closed but music is still syncing | app is running in the tray | use the tray menu to show or quit |
 
 ## Security
 

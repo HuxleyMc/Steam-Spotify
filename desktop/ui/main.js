@@ -33,6 +33,15 @@ const credentialsFieldsEl = document.querySelector("#credentialsFields");
 const credentialsToggleButton = document.querySelector(
   "#credentialsToggleButton"
 );
+const sidebarStatusDot = document.querySelector("#sidebarStatusDot");
+const sidebarStatusLabel = document.querySelector("#sidebarStatusLabel");
+const sidebarStatusDetail = document.querySelector("#sidebarStatusDetail");
+const spotifyChecklistItem = document.querySelector("#spotifyChecklistItem");
+const spotifyChecklistDetail = document.querySelector(
+  "#spotifyChecklistDetail"
+);
+const steamChecklistItem = document.querySelector("#steamChecklistItem");
+const steamChecklistDetail = document.querySelector("#steamChecklistDetail");
 
 const steamGuardMarker = "STEAM_GUARD_REQUIRED";
 const steamUiStatusMarker = "STEAM_UI_STATUS";
@@ -67,33 +76,51 @@ const steamStatusClassNames = [
 const statusVariants = {
   idle: {
     className: "status-idle",
-    label: "Status: idle",
+    label: "Idle",
     detail: "Sync is not running.",
+    sidebarClassName: "state-dot-idle",
+    sidebarLabel: "Ready",
+    sidebarDetail: "Start sync when your accounts are connected.",
   },
   running: {
     className: "status-running",
-    label: "Status: running",
-    detail: "Sync process is running.",
+    label: "Running",
+    detail: "Sync helper is updating Steam in the background.",
+    sidebarClassName: "state-dot-running",
+    sidebarLabel: "Syncing",
+    sidebarDetail: "You can close the window and keep syncing from the tray.",
   },
   starting: {
     className: "status-starting",
-    label: "Status: starting",
-    detail: "Launching sync process.",
+    label: "Starting",
+    detail: "Launching the desktop sync helper.",
+    sidebarClassName: "state-dot-starting",
+    sidebarLabel: "Starting",
+    sidebarDetail: "Connecting Spotify and Steam.",
   },
   stopping: {
     className: "status-stopping",
-    label: "Status: stopping",
-    detail: "Stopping sync process.",
+    label: "Stopping",
+    detail: "Stopping the desktop sync helper.",
+    sidebarClassName: "state-dot-starting",
+    sidebarLabel: "Stopping",
+    sidebarDetail: "Cleaning up the sync worker.",
   },
   disconnected: {
     className: "status-disconnected",
-    label: "Status: disconnected",
+    label: "Disconnected",
     detail: "Sync process exited unexpectedly.",
+    sidebarClassName: "state-dot-error",
+    sidebarLabel: "Needs attention",
+    sidebarDetail: "The sync helper exited. Check the activity log.",
   },
   error: {
     className: "status-error",
-    label: "Status: error",
+    label: "Error",
     detail: "An error occurred. Check logs for details.",
+    sidebarClassName: "state-dot-error",
+    sidebarLabel: "Needs attention",
+    sidebarDetail: "Check setup details or the activity log.",
   },
 };
 
@@ -124,37 +151,37 @@ const streamByStatus = {
 const steamStatusVariants = {
   idle: {
     className: "steam-state-idle",
-    label: "Steam: idle",
+    label: "Waiting",
     detail: "Waiting for sync to start.",
   },
   connecting: {
     className: "steam-state-connecting",
-    label: "Steam: connecting",
+    label: "Connecting",
     detail: "Attempting Steam login.",
   },
   guard: {
     className: "steam-state-guard",
-    label: "Steam: guard required",
+    label: "Guard required",
     detail: "Steam Guard code is required.",
   },
   connected: {
     className: "steam-state-connected",
-    label: "Steam: connected",
+    label: "Connected",
     detail: "Steam session is authenticated.",
   },
   playing: {
     className: "steam-state-playing",
-    label: "Steam: status set",
+    label: "Status set",
     detail: "Steam presence was updated.",
   },
   disconnected: {
     className: "steam-state-disconnected",
-    label: "Steam: disconnected",
+    label: "Disconnected",
     detail: "Steam disconnected.",
   },
   error: {
     className: "steam-state-error",
-    label: "Steam: error",
+    label: "Steam error",
     detail: "Steam integration reported an error.",
   },
 };
@@ -215,10 +242,10 @@ const setCredentialsCollapsed = (collapsed) => {
     return;
   }
 
-  credentialsFieldsEl.style.display = collapsed ? "none" : "grid";
+  credentialsFieldsEl.style.display = collapsed ? "none" : "";
   credentialsToggleButton.textContent = collapsed
-    ? "Show Credentials"
-    : "Hide Credentials";
+    ? "Show setup"
+    : "Hide setup";
   credentialsToggleButton.setAttribute("aria-expanded", String(!collapsed));
 };
 
@@ -248,6 +275,27 @@ const updateLogCount = () => {
 
   const lineLabel = logLineCount === 1 ? "line" : "lines";
   logCountEl.textContent = `${logLineCount} ${lineLabel} captured`;
+};
+
+const updateSetupChecklist = () => {
+  const settings = getSettings();
+  const spotifyReady = Boolean(settings.clientId && settings.clientSecret);
+  const steamReady = Boolean(settings.steamUsername && settings.steamPassword);
+
+  spotifyChecklistItem?.classList.toggle("setup-item-ready", spotifyReady);
+  steamChecklistItem?.classList.toggle("setup-item-ready", steamReady);
+
+  if (spotifyChecklistDetail) {
+    spotifyChecklistDetail.textContent = spotifyReady
+      ? "Client details saved"
+      : "Client details needed";
+  }
+
+  if (steamChecklistDetail) {
+    steamChecklistDetail.textContent = steamReady
+      ? "Credentials saved"
+      : "Username and password needed";
+  }
 };
 
 const hideSteamGuardPrompt = () => {
@@ -316,6 +364,21 @@ const setStatus = (state, detail) => {
   statusEl.classList.add(variant.className);
   statusEl.textContent = variant.label;
   statusDetailEl.textContent = detail ?? variant.detail;
+  if (sidebarStatusDot) {
+    sidebarStatusDot.classList.remove(
+      "state-dot-idle",
+      "state-dot-running",
+      "state-dot-starting",
+      "state-dot-error"
+    );
+    sidebarStatusDot.classList.add(variant.sidebarClassName);
+  }
+  if (sidebarStatusLabel) {
+    sidebarStatusLabel.textContent = variant.sidebarLabel;
+  }
+  if (sidebarStatusDetail) {
+    sidebarStatusDetail.textContent = detail ?? variant.sidebarDetail;
+  }
   setStreamState(streamByStatus[state] ?? "error");
 };
 
@@ -538,10 +601,13 @@ if (invoke && listen) {
     notPlaying,
   ]) {
     field.addEventListener("change", () => {
+      updateSetupChecklist();
       persistSettings().catch((error) => {
         appendLog(`[ui] Failed to save settings: ${error}`);
       });
     });
+
+    field.addEventListener("input", updateSetupChecklist);
   }
 
   stopButton.addEventListener("click", async () => {
@@ -723,7 +789,10 @@ if (invoke && listen) {
     .then((settings) => {
       if (settings) {
         applySettings(settings);
+        updateSetupChecklist();
         appendLog("[ui] Loaded saved settings.");
+      } else {
+        updateSetupChecklist();
       }
     })
     .catch((error) => {

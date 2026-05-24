@@ -3,41 +3,136 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Steam Spotify Desktop</title>
+    <title>Steam Spotify</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="app-shell">
-      <section class="hero-panel">
-        <p class="eyebrow">Desktop Relay</p>
-        <h1>Steam x Spotify Signal Console</h1>
-        <p class="hero-copy">
-          Manage credentials, launch the sync process, and watch runtime output
-          in one control surface designed for fast monitoring.
-        </p>
-        <div class="hero-meta">
-          <span class="meta-pill">Local-only credentials</span>
-          <span class="meta-pill">Lifecycle telemetry</span>
-          <span class="meta-pill">Realtime stdout stream</span>
+      <aside class="sidebar" aria-label="App summary">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">
+            <span class="brand-disc brand-disc-spotify"></span>
+            <span class="brand-disc brand-disc-steam"></span>
+          </div>
+          <div>
+            <p class="app-name">Steam Spotify</p>
+            <p class="app-subtitle">Desktop sync helper</p>
+          </div>
         </div>
-      </section>
 
-      <section class="workspace-grid">
-        <section class="panel credentials-panel">
-          <div class="panel-heading panel-heading-row">
-            <div class="panel-heading">
-              <h2>Credentials</h2>
-              <p>
-                Settings are saved in local app storage and injected when the
-                sync process starts.
-              </p>
+        <div class="helper-state">
+          <span id="sidebarStatusDot" class="state-dot state-dot-idle"></span>
+          <div>
+            <p id="sidebarStatusLabel" class="helper-state-label">Ready</p>
+            <p id="sidebarStatusDetail" class="helper-state-detail">
+              Start sync when your accounts are connected.
+            </p>
+          </div>
+        </div>
+
+        <nav class="setup-list" aria-label="Setup checklist">
+          <div id="spotifyChecklistItem" class="setup-item">
+            <span class="setup-icon">1</span>
+            <div>
+              <p>Spotify</p>
+              <span id="spotifyChecklistDetail">Client details needed</span>
             </div>
+          </div>
+          <div id="steamChecklistItem" class="setup-item">
+            <span class="setup-icon">2</span>
+            <div>
+              <p>Steam</p>
+              <span id="steamChecklistDetail">Username and password needed</span>
+            </div>
+          </div>
+          <div id="backgroundChecklistItem" class="setup-item setup-item-ready">
+            <span class="setup-icon">3</span>
+            <div>
+              <p>Background</p>
+              <span>Close the window to keep it in the tray</span>
+            </div>
+          </div>
+        </nav>
+
+        <div class="background-note">
+          <p>Runs in the background</p>
+          <span>
+            Steam Spotify keeps syncing from the tray until you choose Quit.
+          </span>
+        </div>
+      </aside>
+
+      <section class="main-workspace">
+        <header class="topbar">
+          <div>
+            <h1>Keep Steam in tune with Spotify.</h1>
+            <p>
+              Connect once, start sync, and let the desktop helper update your
+              Steam status while you listen.
+            </p>
+          </div>
+          <div class="topbar-actions">
             <button id="credentialsToggleButton" class="ghost" type="button">
-              Hide Credentials
+              Hide setup
+            </button>
+            <button id="clearLogsButton" class="icon-button" type="button">
+              Clear logs
             </button>
           </div>
+        </header>
 
-          <div id="credentialsFields" class="fields">
+        <section class="control-deck" aria-label="Sync controls">
+          <div class="sync-card">
+            <div>
+              <p class="section-label">Sync status</p>
+              <p id="status" class="status status-idle">Idle</p>
+              <p id="statusDetail" class="status-detail">
+                Sync is not running.
+              </p>
+            </div>
+            <div class="primary-actions">
+              <button id="startButton" class="primary" type="button">
+                Start Sync
+              </button>
+              <button id="stopButton" class="danger" type="button" disabled>
+                Stop
+              </button>
+              <button id="restartButton" class="secondary" type="button" disabled>
+                Restart
+              </button>
+            </div>
+          </div>
+
+          <div class="service-card">
+            <p class="section-label">Steam session</p>
+            <p id="steamStatus" class="steam-status steam-state-idle">
+              Waiting
+            </p>
+            <p id="steamStatusDetail" class="steam-status-detail">
+              Waiting for sync to start.
+            </p>
+            <button
+              id="steamGuardOpenButton"
+              class="secondary"
+              type="button"
+              disabled
+            >
+              Enter Steam Guard
+            </button>
+          </div>
+        </section>
+
+        <section id="credentialsFields" class="setup-panel" aria-label="Setup">
+          <div class="panel-heading">
+            <p class="section-label">Account setup</p>
+            <h2>Connect your accounts</h2>
+            <p>
+              Credentials stay in local app storage and are only passed to the
+              sync helper on this machine.
+            </p>
+          </div>
+
+          <div class="fields">
             <label class="field-label">
               Spotify Client ID
               <input id="clientId" type="text" autocomplete="off" />
@@ -48,8 +143,8 @@
               <input id="clientSecret" type="password" autocomplete="off" />
             </label>
 
-            <label class="field-label">
-              Spotify Redirect URI (optional)
+            <label class="field-label field-wide">
+              Spotify Redirect URI
               <input
                 id="redirectUri"
                 type="text"
@@ -78,85 +173,51 @@
               />
             </label>
           </div>
+
+          <div class="setup-actions">
+            <button id="loginButton" class="secondary" type="button" disabled>
+              Open Spotify Login
+            </button>
+            <p>
+              Start sync first so the local Spotify login page is available.
+            </p>
+          </div>
         </section>
 
-        <div class="stack">
-          <section class="panel controls-panel">
-            <div class="panel-heading">
-              <h2>Process Controls</h2>
-              <p>Trigger runtime actions and Spotify auth in-place.</p>
-            </div>
+        <section id="steamGuardPrompt" class="guard-prompt" hidden>
+          <div>
+            <p class="section-label">Steam Guard</p>
+            <h2>Confirm Steam sign-in</h2>
+            <p id="steamGuardPromptDetail">
+              Enter the latest Steam Guard code to continue login.
+            </p>
+          </div>
+          <div class="guard-actions">
+            <input
+              id="steamGuardPromptInput"
+              type="text"
+              autocomplete="one-time-code"
+              placeholder="Steam Guard code"
+            />
+            <button id="steamGuardSubmitButton" class="primary" type="button">
+              Submit Code
+            </button>
+          </div>
+        </section>
 
-            <div class="actions">
-              <button id="startButton" class="primary">Start Sync</button>
-              <button id="restartButton" class="secondary" disabled>
-                Restart Sync
-              </button>
-              <button id="stopButton" class="danger" disabled>Stop Sync</button>
-              <button id="loginButton" class="secondary" disabled>
-                Open Spotify Login
-              </button>
-              <button id="steamGuardOpenButton" class="secondary" disabled>
-                Enter Steam Guard Code
-              </button>
-              <button id="clearLogsButton" class="ghost" type="button">
-                Clear Logs
-              </button>
+        <section class="activity-panel">
+          <div class="logs-head">
+            <div>
+              <p class="section-label">Activity</p>
+              <h2>Live helper log</h2>
+              <p id="logCount">0 lines captured</p>
             </div>
-
-            <div class="status-strip">
-              <p id="status" class="status status-idle">Status: idle</p>
-              <p id="statusDetail" class="status-detail">
-                Sync is not running.
-              </p>
-            </div>
-
-            <div class="steam-status-strip">
-              <p class="steam-status-heading">Steam session</p>
-              <p id="steamStatus" class="steam-status steam-state-idle">
-                Steam: idle
-              </p>
-              <p id="steamStatusDetail" class="steam-status-detail">
-                Waiting for sync to start.
-              </p>
-            </div>
-
-            <div id="steamGuardPrompt" class="guard-prompt" hidden>
-              <p class="guard-title">Steam Guard Challenge</p>
-              <p id="steamGuardPromptDetail" class="guard-copy">
-                Enter the latest Steam Guard code to continue login.
-              </p>
-              <div class="guard-actions">
-                <input
-                  id="steamGuardPromptInput"
-                  type="text"
-                  autocomplete="one-time-code"
-                  placeholder="Steam Guard code"
-                />
-                <button
-                  id="steamGuardSubmitButton"
-                  class="primary"
-                  type="button"
-                >
-                  Submit Code
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <section class="panel logs-panel">
-            <div class="logs-head">
-              <div class="panel-heading compact">
-                <h2>Live Logs</h2>
-                <p id="logCount">0 lines captured</p>
-              </div>
-              <span id="streamState" class="stream-pill stream-idle"
-                >stream idle</span
-              >
-            </div>
-            <pre id="logs" aria-live="polite"></pre>
-          </section>
-        </div>
+            <span id="streamState" class="stream-pill stream-idle"
+              >stream idle</span
+            >
+          </div>
+          <pre id="logs" aria-live="polite"></pre>
+        </section>
       </section>
     </main>
 

@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Clone, Default)]
@@ -308,6 +310,46 @@ fn spawn_log_reader(
     });
 }
 
+fn reveal_main_window(app_handle: &AppHandle) {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+fn terminate_sync_child(state: &SyncState) {
+    let Ok(mut guard) = state.child.lock() else {
+        return;
+    };
+
+    if let Some(child) = guard.as_mut() {
+        let pid = child.id();
+
+        #[cfg(unix)]
+        {
+            let _ = Command::new("pkill")
+                .arg("-TERM")
+                .arg("-P")
+                .arg(pid.to_string())
+                .status();
+        }
+
+        let _ = child.kill();
+        let _ = child.wait();
+
+        #[cfg(unix)]
+        {
+            let _ = Command::new("pkill")
+                .arg("-KILL")
+                .arg("-P")
+                .arg(pid.to_string())
+                .status();
+        }
+    }
+
+    *guard = None;
+}
+
 #[tauri::command]
 fn get_sync_status(state: State<'_, SyncState>) -> Result<SyncStatus, String> {
     let running = is_sync_running(&state)?;
@@ -466,46 +508,14 @@ fn start_sync(
 
 #[tauri::command]
 fn stop_sync(app_handle: AppHandle, state: State<'_, SyncState>) -> Result<(), String> {
-    let mut guard = state
-        .child
-        .lock()
-        .map_err(|_| "Failed to lock process state".to_string())?;
-
-    if let Some(child) = guard.as_mut() {
-        let pid = child.id();
-
-        #[cfg(unix)]
-        {
-            // Ensure subprocesses spawned by Bun are also terminated.
-            let _ = Command::new("pkill")
-                .arg("-TERM")
-                .arg("-P")
-                .arg(pid.to_string())
-                .status();
-        }
-
+    if is_sync_running(&state)? {
         emit_lifecycle(
             &app_handle,
             "stopping",
             "Stopping sync process...".to_string(),
             None,
         );
-        child
-            .kill()
-            .map_err(|err| format!("Failed to stop sync process: {err}"))?;
-        let _ = child.wait();
-
-        #[cfg(unix)]
-        {
-            // Final cleanup in case descendants outlive the parent briefly.
-            let _ = Command::new("pkill")
-                .arg("-KILL")
-                .arg("-P")
-                .arg(pid.to_string())
-                .status();
-        }
-
-        *guard = None;
+        terminate_sync_child(&state);
         emit_line(&app_handle, "ui", "Sync process stopped".to_string());
         emit_lifecycle(
             &app_handle,
@@ -633,7 +643,43 @@ pub fn run() {
             let app_handle = app.handle().clone();
             let state = app.state::<SyncState>().inner().clone();
             spawn_sync_monitor(app_handle, state);
+
+            let show_item =
+                MenuItem::with_id(app, "show", "Show Steam Spotify", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
+
+            TrayIconBuilder::new()
+                .tooltip("Steam Spotify")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        reveal_main_window(tray.app_handle());
+                    }
+                })
+                .on_menu_event(|app_handle, event| match event.id().as_ref() {
+                    "show" => reveal_main_window(app_handle),
+                    "quit" => {
+                        let state = app_handle.state::<SyncState>().inner().clone();
+                        terminate_sync_child(&state);
+                        app_handle.exit(0);
+                    }
+                    _ => {}
+                })
+                .build(app)?;
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             get_sync_status,

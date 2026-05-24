@@ -1,21 +1,21 @@
-# Steam Spotify Desktop (Tauri)
+# Steam Spotify Desktop
 
-Desktop UI for running and monitoring Steam-Spotify sync.
+Tauri desktop app for running Steam-Spotify sync as a background helper.
 
 ## What You Can Do
 
 - enter Spotify and Steam credentials
 - start, stop, and restart sync
-- open Spotify login page from the app
-- submit Steam Guard response (code or approval)
+- open Spotify login from the app
+- submit Steam Guard responses
 - monitor Steam session status
 - stream logs in real time
-- collapse credentials section for cleaner monitoring
+- close the window while sync continues from the tray
 
 ## Prerequisites
 
 1. Install Bun
-2. Install Rust toolchain (for Tauri)
+2. Install the Rust toolchain
 3. Install repo dependencies
 
 From repository root:
@@ -28,8 +28,15 @@ bun install
 
 ## Run Desktop App
 
+From repository root:
+
 ```bash
-cd desktop
+bun run start
+```
+
+Or from this directory:
+
+```bash
 bun run dev
 ```
 
@@ -40,12 +47,14 @@ bun run dev
 3. Click `Open Spotify Login` and approve access.
 4. If Steam asks for a code, enter it and click `Submit Code`.
 5. If Steam asks for approval, approve in Steam and click `Continue`.
-6. Confirm logs show Steam login succeeded.
+6. Close the window to keep syncing in the background.
+
+Use the tray menu to show the window again or quit. Quitting stops the sync helper.
 
 ## Steam Guard Notes
 
 - The app sends one Steam Guard response per sync start.
-- If Steam asks again after the first response, restart sync (`Stop Sync` then `Start Sync`).
+- If Steam asks again after the first response, restart sync (`Stop` then `Start`).
 - This avoids repeated auth submissions and Steam rate-limit issues.
 
 ## Build Installers
@@ -59,7 +68,7 @@ Output directory:
 
 `desktop/src-tauri/target/release/bundle`
 
-## Create Beta Release (GitHub Actions)
+## Create Beta Release
 
 Use workflow:
 
@@ -67,11 +76,11 @@ Use workflow:
 
 Run it manually (`workflow_dispatch`) to:
 
-1. Build desktop bundles for macOS (Linux/Windows disabled for now).
+1. Build desktop bundles for macOS.
 2. Publish a GitHub prerelease with attached artifacts.
 
 ## Notes
 
-- Desktop currently launches the Bun-based sync process (`bun run src/index.ts`).
+- The desktop app launches the internal Bun sync worker.
 - Bun must be available on the machine running the desktop app.
 - Settings are stored in app config as `settings.json`.
